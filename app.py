@@ -7,15 +7,26 @@ def init_db():
     """Создает файл базы данных и таблицы, если их еще нет"""
     conn = sqlite3.connect("taskearn.db")
     cursor = conn.cursor()
-    # Таблица для заданий
+    # Таблица для заданий с новыми колонками city и category
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS tasks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT NOT NULL,
             reward REAL NOT NULL,
-            status TEXT NOT NULL
+            status TEXT NOT NULL,
+            city TEXT DEFAULT 'Кишинёв',
+            category TEXT DEFAULT 'Другое'
         )
     """)
+    
+    # Проверяем, есть ли уже колонки city и category (на случай, если база старая)
+    cursor.execute("PRAGMA table_info(tasks)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if "city" not in columns:
+        cursor.execute("ALTER TABLE tasks ADD COLUMN city TEXT DEFAULT 'Кишинёв'")
+    if "category" not in columns:
+        cursor.execute("ALTER TABLE tasks ADD COLUMN category TEXT DEFAULT 'Другое'")
+
     # Таблица для балансов
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS balances (
@@ -23,15 +34,14 @@ def init_db():
             balance REAL
         )
     """)
-    # Заполняем стартовые балансы, если таблица пустая
     cursor.execute("INSERT OR IGNORE INTO balances (role, balance) VALUES ('client', 500.0)")
     cursor.execute("INSERT OR IGNORE INTO balances (role, balance) VALUES ('worker', 0.0)")
     
-    # Добавим тестовые задачи, если база совсем пустая
+    # Добавим стартовые задачи
     cursor.execute("SELECT COUNT(*) FROM tasks")
     if cursor.fetchone()[0] == 0:
-        cursor.execute("INSERT INTO tasks (title, reward, status) VALUES ('Купить и привезти продукты (Кишинев)', 150.0, 'Доступно')")
-        cursor.execute("INSERT INTO tasks (title, reward, status) VALUES ('Перевести текст с румынского на русский', 200.0, 'Доступно')")
+        cursor.execute("INSERT INTO tasks (title, reward, status, city, category) VALUES ('Купить и привезти продукты', 150.0, 'Доступно', 'Кишинёв', '📦 Доставка')")
+        cursor.execute("INSERT INTO tasks (title, reward, status, city, category) VALUES ('Перевести текст с румынского', 200.0, 'Доступно', 'Бельцы', '💻 IT и Тексты')")
         
     conn.commit()
     conn.close()
@@ -52,10 +62,10 @@ def update_balance(role_type, amount):
     conn.commit()
     conn.close()
 
-def add_task(title, reward):
+def add_task(title, reward, city, category):
     conn = sqlite3.connect("taskearn.db")
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO tasks (title, reward, status) VALUES (?, ?, 'Доступно')", (title, reward))
+    cursor.execute("INSERT INTO tasks (title, reward, status, city, category) VALUES (?, ?, 'Доступно', ?, ?)", (title, reward, city, category))
     conn.commit()
     conn.close()
 
@@ -73,18 +83,21 @@ def complete_task(task_id, reward):
     conn.commit()
     conn.close()
 
-# Инициализируем базу при запуске приложения
+# Инициализируем базу
 init_db()
+
+# Списки городов и категорий для выбора
+CITIES = ["Все города", "Кишинёв", "Бельцы", "Комрат", "Кагул", "Тирасполь", "Бендеры", "Оргеев"]
+CATEGORIES = ["Все категории", "📦 Доставка", "🛠️ Ремонт и дом", "💻 IT и Тексты", "🚗 Автоуслуги", "Другое"]
 
 # --- ИНТЕРФЕЙС STREAMLIT ---
 st.set_page_config(page_title="TaskEarn MDL", page_icon="🇲🇩", layout="centered")
 
-st.title("🇲🇩 TaskEarn — Заработок на микрозадачах в Молдове")
+st.title("🇲🇩 TaskEarn — Микрозадачи в Молдове")
 st.write("---")
 
 role = st.sidebar.radio("Выберите вашу роль:", ["💼 Заказчик", "🧑‍💻 Исполнитель"])
 
-# Подтягиваем балансы напрямую из SQL
 balance_client = get_balance("client")
 balance_worker = get_balance("worker")
 
@@ -106,46 +119,71 @@ if role == "💼 Заказчик":
     with st.form("new_task_form", clear_on_submit=True):
         st.subheader("➕ Разместить новое задание")
         task_title = st.text_input("Что нужно сделать?")
+        
+        # Выбор города и категории (без пункта "Все")
+        task_city = st.selectbox("Город выполнения:", CITIES[1:])
+        task_category = st.selectbox("Категория:", CATEGORIES[1:])
+        
         task_reward = st.number_input("Оплата исполнителю (MDL)", min_value=20, value=100, step=10)
         submit = st.form_submit_button("Опубликовать и заблокировать оплату")
         
         if submit and task_title:
             if balance_client >= task_reward:
                 update_balance("client", -task_reward)
-                add_task(task_title, task_reward)
-                st.success(f"Задание опубликовано! {task_reward} MDL заморожены в БД.")
+                add_task(task_title, task_reward, task_city, task_category)
+                st.success(f"Задание опубликовано для г. {task_city}!")
                 st.rerun()
             else:
-                st.error("Недостаточно средств на балансе!")
+                st.error("Недостаточно средств!")
 
     st.write("---")
-    st.subheader("📋 Ваши задания в системе (из Базы Данных)")
+    st.subheader("📋 Все ваши задания в БД")
     df_tasks = get_tasks()
     if not df_tasks.empty:
-        st.dataframe(df_tasks[["id", "title", "reward", "status"]], use_container_width=True)
+        st.dataframe(df_tasks[["id", "title", "city", "category", "reward", "status"]], use_container_width=True)
 
 # --- ЛОГИКА ИСПОЛНИТЕЛЯ ---
 elif role == "🧑‍💻 Исполнитель":
     st.header("Доступные задания для заработка")
     
-    df_tasks = get_tasks()
-    if df_tasks.empty:
-        available_tasks = []
-    else:
-        available_tasks = df_tasks[df_tasks["status"] == "Доступно"].to_dict(orient="records")
+    # Фильтры вверху страницы исполнителя
+    col_f1, col_f2 = st.columns(2)
+    with col_f1:
+        filter_city = st.selectbox("📍 Фильтр по городу:", CITIES)
+    with col_f2:
+        filter_cat = st.selectbox("📁 Фильтр по категории:", CATEGORIES)
     
-    if not available_tasks:
-        st.info("На данный момент нет доступных заданий.")
+    df_tasks = get_tasks()
+    
+    if df_tasks.empty:
+        st.info("В базе данных пока нет заданий.")
     else:
-        for task in available_tasks:
-            with st.container():
-                col1, col2 = st.columns([3, 1])
-                with col1:
-                    st.write(f"{task['title']}")
-                    st.write(f"💰 Награда: {task['reward']} MDL (ID: {task['id']})")
-                with col2:
-                    if st.button(f"Выполнить", key=f"b_{task['id']}", use_container_width=True):
-                        complete_task(task["id"], task["reward"])
-                        st.success(f"Зачислено {task['reward']} MDL.")
-                        st.rerun()
-                st.write("---")
+        # Фильтруем только доступные задачи
+        df_filtered = df_tasks[df_tasks["status"] == "Доступно"]
+        
+        # Применяем фильтр по городу
+        if filter_city != "Все города":
+            df_filtered = df_filtered[df_filtered["city"] == filter_city]
+            
+        # Применяем фильтр по категории
+        if filter_cat != "Все категории":
+            df_filtered = df_filtered[df_filtered["category"] == filter_cat]
+            
+        available_tasks = df_filtered.to_dict(orient="records")
+        
+        if not available_tasks:
+            st.info("Нет заданий, соответствующих выбранным фильтрам.")
+        else:
+            for task in available_tasks:
+                with st.container():
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        st.write(f"{task['title']}")
+                        st.caption(f"📍 {task['city']} | 📁 {task['category']}")
+                        st.write(f"💰 Награда: {task['reward']} MDL")
+                    with col2:
+                        if st.button(f"Выполнить", key=f"b_{task['id']}", use_container_width=True):
+                            complete_task(task["id"], task["reward"])
+                            st.success(f"Выполнено! Получено {task['reward']} MDL.")
+                            st.rerun()
+                    st.write("---")
