@@ -246,7 +246,7 @@ if role == "💼 Заказчик":
     with tab_tasks:
         st.header("Новое задание")
         with st.form("new_task_form", clear_on_submit=True):
-            task_title = st.text_input("What needs to be done?")
+            task_title = st.text_input("Что нужно сделать?")
             task_city = st.selectbox("Ближайший город/райцентр:", CITIES[1:])
             task_village = st.text_input("Уточните населённый пункт (село, коммуна, улица):")
             task_category = st.selectbox("Категория:", CATEGORIES[1:])
@@ -374,7 +374,7 @@ if role == "💼 Заказчик":
                 update_profile("client", n, p, a)
                 st.rerun()
                 
-        st.subheader("💬 Отзывы обо мне от Исполнителеи")
+        st.subheader("💬 Отзывы обо мне от Исполнителей")
         df_revs = get_reviews_for(profile_data['name'])
         if df_revs.empty:
             st.caption("Отзывов пока нет.")
@@ -398,6 +398,7 @@ elif role == "🧑‍💻 Исполнитель":
         if df_tasks.empty:
             st.info("Заданий нет.")
         else:
+            # Показываем доступные задания ИЛИ те, что данный пользователь уже взял на проверку
             df_filtered = df_tasks[(df_tasks["status"] == "Доступно") | ((df_tasks["status"] == "На проверке") & (df_tasks["worker_name"] == profile_data['name']))]
             
             if filter_city != "Все регионы":
@@ -413,10 +414,10 @@ elif role == "🧑‍💻 Исполнитель":
                     with st.container():
                         col1, col2 = st.columns([3, 1])
                         with col1:
-                            st.write(f"**{task['title']}**")
+                            st.write(f"**{task['title']}** — 💰 {task['reward']} MDL")
                             st.caption(f"📍 {task['city']} ({task['village']}) | 📁 {task['category']}")
                             
                             if task['status'] == "На проверке":
                                 client_info = get_profile_by_name(task['client_name'])
                                 st.warning("Ожидает проверки заказчиком")
-                                st.info(f"📞 Связаться с Заказчиком ({task['client_name']}): **{client_info['phone']}** (Рейтинг: ⭐ {client_info['rating']})")
+                                st.info(f"📞 Связаться с Заказчиком ({task['client_name']}):
