@@ -4,7 +4,7 @@ import sqlite3
 
 # --- РАБОТА С БАЗОЙ ДАННЫХ (SQL) ---
 def init_db():
-    """Создает чистую базу данных v14 с отзывами, штрафами заказчиков и мягким падением рейтинга"""
+    """Создает чистую базу данных с отзывами, штрафами заказчиков и мягким падением рейтинга"""
     conn = sqlite3.connect("taskearn_v14.db")
     cursor = conn.cursor()
     
@@ -48,7 +48,7 @@ def init_db():
         )
     """)
     cursor.execute("INSERT OR IGNORE INTO profiles (role, name, phone, about, rating, rating_count, tasks_created, tasks_canceled) VALUES ('client', 'Ион Чебан', '+373 68 123 456', 'Заказчик из Кишинева.', 5.0, 1, 0, 0)")
-    cursor.execute("INSERT OR IGNORE INTO profiles (role, name, phone, about, rating, rating_count, tasks_created, tasks_canceled) VALUES ('worker', 'Михаил Лупу', '+373 79 987 654', 'Исполнитель из Комрата.', 5.0, 1, 0, 0)")
+    cursor.execute("INSERT OR IGNORE INTO profiles (role, name, phone, about, rating, rating_count, tasks_created, tasks_canceled) VALUES ('worker', 'Михаил Лупу', '+373 79 987 654', 'Иполнитель из Комрата.', 5.0, 1, 0, 0)")
     
     # Таблица для текстовых отзывов
     cursor.execute("""
@@ -95,7 +95,7 @@ def update_profile(role_type, name, phone, about):
     conn.close()
 
 def change_rating_flat(profile_name, penalty):
-    """Мягкое изменение рейтинга на фиксированное число (например, -0.6 или -0.4)"""
+    """Мягкое изменение рейтинга на фиксированное число"""
     conn = sqlite3.connect("taskearn_v14.db")
     cursor = conn.cursor()
     cursor.execute("SELECT rating FROM profiles WHERE name=?", (profile_name,))
@@ -212,7 +212,7 @@ init_db()
 CITIES = ["Все регионы", "Кишинёв", "Бельцы", "Комрат", "Кагул", "Оргеев", "Унгены", "Сороки", "Тирасполь"]
 CATEGORIES = ["Все категории", "📦 Доставка", "🛠️ Ремонт и дом", "💻 IT и Тексты", "🚗 Автоуслуги", "Другое"]
 
-# --- ИНТЕРФЕЙС ---
+# --- ИНТЕРФЕЙС STREAMLIT ---
 st.set_page_config(page_title="TaskEarn MDL", page_icon="🇲🇩", layout="centered")
 
 st.title("🇲🇩 TaskEarn — Микрозадачи и Рейтинг")
@@ -398,7 +398,6 @@ elif role == "🧑‍💻 Исполнитель":
         if df_tasks.empty:
             st.info("Заданий нет.")
         else:
-            # Показываем доступные задания ИЛИ те, что данный пользователь уже взял на проверку
             df_filtered = df_tasks[(df_tasks["status"] == "Доступно") | ((df_tasks["status"] == "На проверке") & (df_tasks["worker_name"] == profile_data['name']))]
             
             if filter_city != "Все регионы":
@@ -420,4 +419,6 @@ elif role == "🧑‍💻 Исполнитель":
                             if task['status'] == "На проверке":
                                 client_info = get_profile_by_name(task['client_name'])
                                 st.warning("Ожидает проверки заказчиком")
-                                st.info(f"📞 Связаться с Заказчиком ({task['client_name']}):
+                                st.info(f"📞 Связаться с Заказчиком ({task['client_name']}): **{client_info['phone']}** (Рейтинг: ⭐ {client_info['rating']})")
+                        
+                        w
