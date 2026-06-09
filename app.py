@@ -4,8 +4,8 @@ import sqlite3
 
 # --- РАБОТА С БАЗОЙ ДАННЫХ (SQL) ---
 def init_db():
-    """Создает чистую базу данных v8 с отзывами, штрафами заказчиков и мягким падением рейтинга"""
-    conn = sqlite3.connect("taskearn_v8.db")
+    """Создает чистую базу данных v9 с отзывами, штрафами заказчиков и мягким падением рейтинга"""
+    conn = sqlite3.connect("taskearn_v9.db")
     cursor = conn.cursor()
     
     # Таблица для заданий
@@ -65,7 +65,7 @@ def init_db():
     conn.close()
 
 def get_profile(role_type):
-    conn = sqlite3.connect("taskearn_v8.db")
+    conn = sqlite3.connect("taskearn_v9.db")
     cursor = conn.cursor()
     cursor.execute("SELECT name, phone, about, rating, tasks_created, tasks_canceled FROM profiles WHERE role=?", (role_type,))
     res = cursor.fetchone()
@@ -78,7 +78,7 @@ def get_profile(role_type):
     return {"name": "Не указано", "phone": "", "about": "", "rating": 5.0, "created": 0, "canceled": 0}
 
 def get_profile_by_name(name):
-    conn = sqlite3.connect("taskearn_v8.db")
+    conn = sqlite3.connect("taskearn_v9.db")
     cursor = conn.cursor()
     cursor.execute("SELECT phone, rating, role FROM profiles WHERE name=?", (name,))
     res = cursor.fetchone()
@@ -88,7 +88,7 @@ def get_profile_by_name(name):
     return {"phone": "Не указан", "rating": 5.0, "role": "worker"}
 
 def update_profile(role_type, name, phone, about):
-    conn = sqlite3.connect("taskearn_v8.db")
+    conn = sqlite3.connect("taskearn_v9.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE profiles SET name=?, phone=?, about=? WHERE role=?", (name, phone, about, role_type))
     conn.commit()
@@ -96,7 +96,7 @@ def update_profile(role_type, name, phone, about):
 
 def change_rating_flat(profile_name, penalty):
     """Мягкое изменение рейтинга на фиксированное число (например, -0.6 или -0.4)"""
-    conn = sqlite3.connect("taskearn_v8.db")
+    conn = sqlite3.connect("taskearn_v9.db")
     cursor = conn.cursor()
     cursor.execute("SELECT rating FROM profiles WHERE name=?", (profile_name,))
     res = cursor.fetchone()
@@ -108,7 +108,7 @@ def change_rating_flat(profile_name, penalty):
 
 def update_rating_stars(role_type, new_score):
     """Классический пересчет рейтинга по звездам (1-5) при успешном выполнении"""
-    conn = sqlite3.connect("taskearn_v8.db")
+    conn = sqlite3.connect("taskearn_v9.db")
     cursor = conn.cursor()
     cursor.execute("SELECT rating, rating_count FROM profiles WHERE role=?", (role_type,))
     res = cursor.fetchone()
@@ -121,7 +121,7 @@ def update_rating_stars(role_type, new_score):
     conn.close()
 
 def add_review(target_name, author_name, score, comment):
-    conn = sqlite3.connect("taskearn_v8.db")
+    conn = sqlite3.connect("taskearn_v9.db")
     cursor = conn.cursor()
     cursor.execute("INSERT INTO reviews (target_name, author_name, score, comment) VALUES (?, ?, ?, ?)", 
                    (target_name, author_name, score, comment))
@@ -129,13 +129,13 @@ def add_review(target_name, author_name, score, comment):
     conn.close()
 
 def get_reviews_for(name):
-    conn = sqlite3.connect("taskearn_v8.db")
+    conn = sqlite3.connect("taskearn_v9.db")
     df = pd.read_sql_query("SELECT author_name, score, comment FROM reviews WHERE target_name=?", conn, params=(name,))
     conn.close()
     return df
 
 def get_balance(role_type):
-    conn = sqlite3.connect("taskearn_v8.db")
+    conn = sqlite3.connect("taskearn_v9.db")
     cursor = conn.cursor()
     cursor.execute("SELECT balance FROM balances WHERE role=?", (role_type,))
     res = cursor.fetchone()
@@ -144,14 +144,14 @@ def get_balance(role_type):
     return balance
 
 def update_balance(role_type, amount):
-    conn = sqlite3.connect("taskearn_v8.db")
+    conn = sqlite3.connect("taskearn_v9.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE balances SET balance = balance + ? WHERE role=?", (amount, role_type))
     conn.commit()
     conn.close()
 
 def add_task(title, reward, city, village, category, client_name):
-    conn = sqlite3.connect("taskearn_v8.db")
+    conn = sqlite3.connect("taskearn_v9.db")
     cursor = conn.cursor()
     cursor.execute("""
         INSERT INTO tasks (title, reward, status, city, village, category, client_name) 
@@ -162,13 +162,13 @@ def add_task(title, reward, city, village, category, client_name):
     conn.close()
 
 def get_tasks():
-    conn = sqlite3.connect("taskearn_v8.db")
+    conn = sqlite3.connect("taskearn_v9.db")
     df = pd.read_sql_query("SELECT * FROM tasks", conn)
     conn.close()
     return df
 
 def revoke_free_task(task_id):
-    conn = sqlite3.connect("taskearn_v8.db")
+    conn = sqlite3.connect("taskearn_v9.db")
     cursor = conn.cursor()
     cursor.execute("DELETE FROM tasks WHERE id=?", (task_id,))
     conn.commit()
@@ -176,21 +176,21 @@ def revoke_free_task(task_id):
 
 def worker_abandon_task(task_id):
     """Исполнитель отказывается от задачи, она снова возвращается в ленту свободной"""
-    conn = sqlite3.connect("taskearn_v8.db")
+    conn = sqlite3.connect("taskearn_v9.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Доступно', worker_name='' WHERE id=?", (task_id,))
     conn.commit()
     conn.close()
 
 def send_to_review(task_id, worker_name):
-    conn = sqlite3.connect("taskearn_v8.db")
+    conn = sqlite3.connect("taskearn_v9.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='На проверке', worker_name=? WHERE id=?", (worker_name, task_id))
     conn.commit()
     conn.close()
 
 def approve_task(task_id, reward):
-    conn = sqlite3.connect("taskearn_v8.db")
+    conn = sqlite3.connect("taskearn_v9.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Выполнено' WHERE id=?", (task_id,))
     cursor.execute("UPDATE balances SET balance = balance + ? WHERE role='worker'", (reward,))
@@ -198,7 +198,7 @@ def approve_task(task_id, reward):
     conn.close()
 
 def cancel_task_with_reason(task_id, reward, reason, client_name):
-    conn = sqlite3.connect("taskearn_v8.db")
+    conn = sqlite3.connect("taskearn_v9.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Отменено', cancel_reason=? WHERE id=?", (reason, task_id))
     cursor.execute("UPDATE balances SET balance = balance + ? WHERE role='client'", (reward,))
@@ -246,11 +246,11 @@ if role == "💼 Заказчик":
     with tab_tasks:
         st.header("Новое задание")
         with st.form("new_task_form", clear_on_submit=True):
-            task_title = st.text_input("What needs to be done?")
-            task_city = st.selectbox("Nearest city/district center:", CITIES[1:])
-            task_village = st.text_input("Specify the locality (village, commune, street):")
-            task_category = st.selectbox("Category:", CATEGORIES[1:])
-            task_reward = st.number_input("Payment to worker (MDL)", min_value=20, value=100, step=10)
+            task_title = st.text_input("Что нужно сделать?")
+            task_city = st.selectbox("Ближайший город/райцентр:", CITIES[1:])
+            task_village = st.text_input("Уточните населённый пункт (село, коммуна, улица):")
+            task_category = st.selectbox("Категория:", CATEGORIES[1:])
+            task_reward = st.number_input("Оплата исполнителю (MDL)", min_value=20, value=100, step=10)
             submit = st.form_submit_button("Опубликовать и заблокировать оплату")
             
             if submit and task_title:
@@ -421,4 +421,4 @@ elif role == "🧑‍💻 Исполнитель":
                                 st.warning("Ожидает проверки заказчиком")
                                 st.info(f"📞 Связаться с Заказчиком ({task['client_name']}): **{client_info['phone']}** (Рейтинг: ⭐ {client_info['rating']})")
                             else:
-                                st.w
+                                st.write(
