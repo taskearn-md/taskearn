@@ -420,4 +420,3 @@ elif role == "🧑‍💻 Исполнитель":
                                 client_info = get_profile_by_name(task['client_name'])
                                 st.warning("Ожидает проверки заказчиком")
                                 st.info(f"📞 Связаться с Заказчиком ({task['client_name']}): **{client_info['phone']}** (Рейтинг: ⭐ {client_info['rating']})")
-                            else:
