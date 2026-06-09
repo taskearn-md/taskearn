@@ -162,9 +162,9 @@ elif role == "🧑‍💻 Исполнитель":
                     with st.container():
                         col1, col2 = st.columns([3, 1])
                         with col1:
-                            st.write(f"{task['title']}")
+                            st.write(f"**{task['title']}**")
                             st.caption(f"📍 {task['city']} | 📁 {task['category']}")
-                            st.write(f"💰 Награда: {task['reward']} MDL")
+                            st.write(f"💰 Награда: `{task['reward']} MDL`")
                         with col2:
                             if st.button(f"Выполнить", key=f"b_{task['id']}", use_container_width=True):
                                 complete_task(task["id"], task["reward"])
@@ -174,7 +174,7 @@ elif role == "🧑‍💻 Исполнитель":
                         
     with tab_withdraw:
         st.header("💸 Вывод заработанных леев")
-        st.write(f"Ваш текущий баланс: {balance_worker} MDL")
+        st.write(f"Ваш текущий баланс: **{balance_worker} MDL**")
         
         with st.form("withdraw_form", clear_on_submit=True):
             card_number = st.text_input("Номер карты Молдовы (или кошелька RunPay/BPay):", placeholder="4000 1234 5678 9010")
@@ -184,9 +184,10 @@ elif role == "🧑‍💻 Исполнитель":
             if submit_withdraw:
                 if not card_number:
                     st.error("Пожалуйста, введите номер карты или кошелька!")
-                    elif balance_worker < withdraw_amount:
+                elif balance_worker < withdraw_amount:
                     st.error("На вашем балансе недостаточно средств!")
                 else:
                     update_balance("worker", -withdraw_amount)
                     st.success(f"🎉 Заявка на вывод {withdraw_amount} MDL успешно создана! Деньги будут зачислены на карту {card_number[:4]}**** в течение 15 минут.")
                     st.rerun()
+                    
