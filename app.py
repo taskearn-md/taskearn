@@ -4,11 +4,12 @@ import sqlite3
 
 # --- РАБОТА С БАЗОЙ ДАННЫХ (SQL) ---
 def init_db():
-    """Создает базу данных v5 с системой проверки задач, контактами, отменой и отзывом свободных задач"""
-    conn = sqlite3.connect("taskearn_v5.db")
+    """Создает абсолютно чистую базу данных v6 с поддержкой всех новых колонок и отмен"""
+    # Сменили имя файла на v6, чтобы сбросить старую сломанную структуру на сервере
+    conn = sqlite3.connect("taskearn_v6.db")
     cursor = conn.cursor()
     
-    # Таблица для заданий
+    # Таблица для заданий (все нужные колонки создаются сразу)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS tasks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -52,7 +53,7 @@ def init_db():
     conn.close()
 
 def get_profile(role_type):
-    conn = sqlite3.connect("taskearn_v5.db")
+    conn = sqlite3.connect("taskearn_v6.db")
     cursor = conn.cursor()
     cursor.execute("SELECT name, phone, about, rating FROM profiles WHERE role=?", (role_type,))
     res = cursor.fetchone()
@@ -62,7 +63,7 @@ def get_profile(role_type):
     return {"name": "Не указано", "phone": "", "about": "", "rating": 5.0}
 
 def get_profile_by_name(name):
-    conn = sqlite3.connect("taskearn_v5.db")
+    conn = sqlite3.connect("taskearn_v6.db")
     cursor = conn.cursor()
     cursor.execute("SELECT phone, rating FROM profiles WHERE name=?", (name,))
     res = cursor.fetchone()
@@ -72,14 +73,14 @@ def get_profile_by_name(name):
     return {"phone": "Не указан", "rating": 5.0}
 
 def update_profile(role_type, name, phone, about):
-    conn = sqlite3.connect("taskearn_v5.db")
+    conn = sqlite3.connect("taskearn_v6.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE profiles SET name=?, phone=?, about=? WHERE role=?", (name, phone, about, role_type))
     conn.commit()
     conn.close()
 
 def update_rating(role_type, new_score):
-    conn = sqlite3.connect("taskearn_v5.db")
+    conn = sqlite3.connect("taskearn_v6.db")
     cursor = conn.cursor()
     cursor.execute("SELECT rating, rating_count FROM profiles WHERE role=?", (role_type,))
     res = cursor.fetchone()
@@ -92,7 +93,7 @@ def update_rating(role_type, new_score):
     conn.close()
 
 def get_balance(role_type):
-    conn = sqlite3.connect("taskearn_v5.db")
+    conn = sqlite3.connect("taskearn_v6.db")
     cursor = conn.cursor()
     cursor.execute("SELECT balance FROM balances WHERE role=?", (role_type,))
     res = cursor.fetchone()
@@ -101,14 +102,14 @@ def get_balance(role_type):
     return balance
 
 def update_balance(role_type, amount):
-    conn = sqlite3.connect("taskearn_v5.db")
+    conn = sqlite3.connect("taskearn_v6.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE balances SET balance = balance + ? WHERE role=?", (amount, role_type))
     conn.commit()
     conn.close()
 
 def add_task(title, reward, city, village, category, client_name):
-    conn = sqlite3.connect("taskearn_v5.db")
+    conn = sqlite3.connect("taskearn_v6.db")
     cursor = conn.cursor()
     cursor.execute("""
         INSERT INTO tasks (title, reward, status, city, village, category, client_name) 
@@ -118,28 +119,27 @@ def add_task(title, reward, city, village, category, client_name):
     conn.close()
 
 def get_tasks():
-    conn = sqlite3.connect("taskearn_v5.db")
+    conn = sqlite3.connect("taskearn_v6.db")
     df = pd.read_sql_query("SELECT * FROM tasks", conn)
     conn.close()
     return df
 
 def revoke_free_task(task_id):
-    """Полное удаление свободного задания из базы данных"""
-    conn = sqlite3.connect("taskearn_v5.db")
+    conn = sqlite3.connect("taskearn_v6.db")
     cursor = conn.cursor()
     cursor.execute("DELETE FROM tasks WHERE id=?", (task_id,))
     conn.commit()
     conn.close()
 
 def send_to_review(task_id, worker_name):
-    conn = sqlite3.connect("taskearn_v5.db")
+    conn = sqlite3.connect("taskearn_v6.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='На проверке', worker_name=? WHERE id=?", (worker_name, task_id))
     conn.commit()
     conn.close()
 
 def approve_task(task_id, reward):
-    conn = sqlite3.connect("taskearn_v5.db")
+    conn = sqlite3.connect("taskearn_v6.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Выполнено' WHERE id=?", (task_id,))
     cursor.execute("UPDATE balances SET balance = balance + ? WHERE role='worker'", (reward,))
@@ -147,7 +147,7 @@ def approve_task(task_id, reward):
     conn.close()
 
 def cancel_task_with_reason(task_id, reward, reason):
-    conn = sqlite3.connect("taskearn_v5.db")
+    conn = sqlite3.connect("taskearn_v6.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Отменено', cancel_reason=? WHERE id=?", (reason, task_id))
     cursor.execute("UPDATE balances SET balance = balance + ? WHERE role='client'", (reward,))
@@ -215,7 +215,6 @@ if role == "💼 Заказчик":
         if df_tasks.empty:
             st.info("Вы ещё не создавали заданий.")
         else:
-            # Отфильтруем только задачи этого заказчика
             my_tasks = df_tasks[df_tasks["client_name"] == profile_data['name']].to_dict(orient="records")
             if not my_tasks:
                 st.info("У вас нет активных заданий.")
@@ -233,15 +232,14 @@ if role == "💼 Заказчик":
                                 st.caption(f"⚫ Статус: `{task['status']}`")
                         
                         with col_t2:
-                            # КНОПКА ОТЗЫВА ЗАДАНИЯ (Активна ТОЛЬКО если статус 'Доступно')
                             if task['status'] == 'Доступно':
                                 if st.button("❌ Отозвать", key=f"rev_{task['id']}", use_container_width=True):
                                     revoke_free_task(task['id'])
-                                    update_balance("client", task['reward']) # Возвращаем деньги назад на баланс
+                                    update_balance("client", task['reward'])
                                     st.success("Задание отозвано, деньги вернулись на баланс!")
                                     st.rerun()
                             elif task['status'] == 'На проверке':
-                                st.button("🔒 Принято в работу", key=f"lock_{task['id']}", disabled=True, use_container_width=True)
+                                st.button("🔒 Принято", key=f"lock_{task['id']}", disabled=True, use_container_width=True)
                         st.write("-" * 10)
 
     with tab_review:
@@ -385,4 +383,4 @@ elif role == "🧑‍💻 Исполнитель":
             if st.form_submit_button("Сохранить"):
                 update_profile("worker", n, p, a)
                 st.rerun()
-                                
+    
