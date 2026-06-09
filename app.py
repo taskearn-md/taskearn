@@ -4,8 +4,8 @@ import sqlite3
 
 # --- РАБОТА С БАЗОЙ ДАННЫХ (SQL) ---
 def init_db():
-    """Создает чистую базу данных с отзывами, штрафами заказчиков и мягким падением рейтинга"""
-    conn = sqlite3.connect("taskearn_v14.db")
+    """Создает чистую базу данных v13 с отзывами, штрафами заказчиков и мягким падением рейтинга"""
+    conn = sqlite3.connect("taskearn_v13.db")
     cursor = conn.cursor()
     
     # Таблица для заданий
@@ -48,7 +48,7 @@ def init_db():
         )
     """)
     cursor.execute("INSERT OR IGNORE INTO profiles (role, name, phone, about, rating, rating_count, tasks_created, tasks_canceled) VALUES ('client', 'Ион Чебан', '+373 68 123 456', 'Заказчик из Кишинева.', 5.0, 1, 0, 0)")
-    cursor.execute("INSERT OR IGNORE INTO profiles (role, name, phone, about, rating, rating_count, tasks_created, tasks_canceled) VALUES ('worker', 'Михаил Лупу', '+373 79 987 654', 'Иполнитель из Комрата.', 5.0, 1, 0, 0)")
+    cursor.execute("INSERT OR IGNORE INTO profiles (role, name, phone, about, rating, rating_count, tasks_created, tasks_canceled) VALUES ('worker', 'Михаил Лупу', '+373 79 987 654', 'Исполнитель из Комрата.', 5.0, 1, 0, 0)")
     
     # Таблица для текстовых отзывов
     cursor.execute("""
@@ -65,7 +65,7 @@ def init_db():
     conn.close()
 
 def get_profile(role_type):
-    conn = sqlite3.connect("taskearn_v14.db")
+    conn = sqlite3.connect("taskearn_v13.db")
     cursor = conn.cursor()
     cursor.execute("SELECT name, phone, about, rating, tasks_created, tasks_canceled FROM profiles WHERE role=?", (role_type,))
     res = cursor.fetchone()
@@ -78,7 +78,7 @@ def get_profile(role_type):
     return {"name": "Не указано", "phone": "", "about": "", "rating": 5.0, "created": 0, "canceled": 0}
 
 def get_profile_by_name(name):
-    conn = sqlite3.connect("taskearn_v14.db")
+    conn = sqlite3.connect("taskearn_v13.db")
     cursor = conn.cursor()
     cursor.execute("SELECT phone, rating, role FROM profiles WHERE name=?", (name,))
     res = cursor.fetchone()
@@ -88,15 +88,15 @@ def get_profile_by_name(name):
     return {"phone": "Не указан", "rating": 5.0, "role": "worker"}
 
 def update_profile(role_type, name, phone, about):
-    conn = sqlite3.connect("taskearn_v14.db")
+    conn = sqlite3.connect("taskearn_v13.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE profiles SET name=?, phone=?, about=? WHERE role=?", (name, phone, about, role_type))
     conn.commit()
     conn.close()
 
 def change_rating_flat(profile_name, penalty):
-    """Мягкое изменение рейтинга на фиксированное число"""
-    conn = sqlite3.connect("taskearn_v14.db")
+    """Мягкое изменение рейтинга на фиксированное число (например, -0.6 или -0.4)"""
+    conn = sqlite3.connect("taskearn_v13.db")
     cursor = conn.cursor()
     cursor.execute("SELECT rating FROM profiles WHERE name=?", (profile_name,))
     res = cursor.fetchone()
@@ -108,7 +108,7 @@ def change_rating_flat(profile_name, penalty):
 
 def update_rating_stars(role_type, new_score):
     """Классический пересчет рейтинга по звездам (1-5) при успешном выполнении"""
-    conn = sqlite3.connect("taskearn_v14.db")
+    conn = sqlite3.connect("taskearn_v13.db")
     cursor = conn.cursor()
     cursor.execute("SELECT rating, rating_count FROM profiles WHERE role=?", (role_type,))
     res = cursor.fetchone()
@@ -121,7 +121,7 @@ def update_rating_stars(role_type, new_score):
     conn.close()
 
 def add_review(target_name, author_name, score, comment):
-    conn = sqlite3.connect("taskearn_v14.db")
+    conn = sqlite3.connect("taskearn_v13.db")
     cursor = conn.cursor()
     cursor.execute("INSERT INTO reviews (target_name, author_name, score, comment) VALUES (?, ?, ?, ?)", 
                    (target_name, author_name, score, comment))
@@ -129,13 +129,13 @@ def add_review(target_name, author_name, score, comment):
     conn.close()
 
 def get_reviews_for(name):
-    conn = sqlite3.connect("taskearn_v14.db")
+    conn = sqlite3.connect("taskearn_v13.db")
     df = pd.read_sql_query("SELECT author_name, score, comment FROM reviews WHERE target_name=?", conn, params=(name,))
     conn.close()
     return df
 
 def get_balance(role_type):
-    conn = sqlite3.connect("taskearn_v14.db")
+    conn = sqlite3.connect("taskearn_v13.db")
     cursor = conn.cursor()
     cursor.execute("SELECT balance FROM balances WHERE role=?", (role_type,))
     res = cursor.fetchone()
@@ -144,14 +144,14 @@ def get_balance(role_type):
     return balance
 
 def update_balance(role_type, amount):
-    conn = sqlite3.connect("taskearn_v14.db")
+    conn = sqlite3.connect("taskearn_v13.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE balances SET balance = balance + ? WHERE role=?", (amount, role_type))
     conn.commit()
     conn.close()
 
 def add_task(title, reward, city, village, category, client_name):
-    conn = sqlite3.connect("taskearn_v14.db")
+    conn = sqlite3.connect("taskearn_v13.db")
     cursor = conn.cursor()
     cursor.execute("""
         INSERT INTO tasks (title, reward, status, city, village, category, client_name) 
@@ -162,35 +162,43 @@ def add_task(title, reward, city, village, category, client_name):
     conn.close()
 
 def get_tasks():
-    conn = sqlite3.connect("taskearn_v14.db")
+    conn = sqlite3.connect("taskearn_v13.db")
     df = pd.read_sql_query("SELECT * FROM tasks", conn)
     conn.close()
     return df
 
 def revoke_free_task(task_id):
-    conn = sqlite3.connect("taskearn_v14.db")
+    conn = sqlite3.connect("taskearn_v13.db")
     cursor = conn.cursor()
     cursor.execute("DELETE FROM tasks WHERE id=?", (task_id,))
     conn.commit()
     conn.close()
 
+def worker_accept_task(task_id, worker_name):
+    """Исполнитель берет задачу в работу"""
+    conn = sqlite3.connect("taskearn_v13.db")
+    cursor = conn.cursor()
+    cursor.execute("UPDATE tasks SET status='В работе', worker_name=? WHERE id=?", (worker_name, task_id))
+    conn.commit()
+    conn.close()
+
 def worker_abandon_task(task_id):
     """Исполнитель отказывается от задачи, она снова возвращается в ленту свободной"""
-    conn = sqlite3.connect("taskearn_v14.db")
+    conn = sqlite3.connect("taskearn_v13.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Доступно', worker_name='' WHERE id=?", (task_id,))
     conn.commit()
     conn.close()
 
 def send_to_review(task_id, worker_name):
-    conn = sqlite3.connect("taskearn_v14.db")
+    conn = sqlite3.connect("taskearn_v13.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='На проверке', worker_name=? WHERE id=?", (worker_name, task_id))
     conn.commit()
     conn.close()
 
 def approve_task(task_id, reward):
-    conn = sqlite3.connect("taskearn_v14.db")
+    conn = sqlite3.connect("taskearn_v13.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Выполнено' WHERE id=?", (task_id,))
     cursor.execute("UPDATE balances SET balance = balance + ? WHERE role='worker'", (reward,))
@@ -198,7 +206,7 @@ def approve_task(task_id, reward):
     conn.close()
 
 def cancel_task_with_reason(task_id, reward, reason, client_name):
-    conn = sqlite3.connect("taskearn_v14.db")
+    conn = sqlite3.connect("taskearn_v13.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Отменено', cancel_reason=? WHERE id=?", (reason, task_id))
     cursor.execute("UPDATE balances SET balance = balance + ? WHERE role='client'", (reward,))
@@ -212,7 +220,7 @@ init_db()
 CITIES = ["Все регионы", "Кишинёв", "Бельцы", "Комрат", "Кагул", "Оргеев", "Унгены", "Сороки", "Тирасполь"]
 CATEGORIES = ["Все категории", "📦 Доставка", "🛠️ Ремонт и дом", "💻 IT и Тексты", "🚗 Автоуслуги", "Другое"]
 
-# --- ИНТЕРФЕЙС STREAMLIT ---
+# --- ИНТЕРФЕЙС ---
 st.set_page_config(page_title="TaskEarn MDL", page_icon="🇲🇩", layout="centered")
 
 st.title("🇲🇩 TaskEarn — Микрозадачи и Рейтинг")
@@ -246,7 +254,7 @@ if role == "💼 Заказчик":
     with tab_tasks:
         st.header("Новое задание")
         with st.form("new_task_form", clear_on_submit=True):
-            task_title = st.text_input("Что нужно сделать?")
+            task_title = st.text_input("Что необходимо сделать?")
             task_city = st.selectbox("Ближайший город/райцентр:", CITIES[1:])
             task_village = st.text_input("Уточните населённый пункт (село, коммуна, улица):")
             task_category = st.selectbox("Категория:", CATEGORIES[1:])
@@ -281,8 +289,10 @@ if role == "💼 Заказчик":
                             st.write(f"**{task['title']}** — 💰 {task['reward']} MDL")
                             if task['status'] == 'Доступно':
                                 st.caption(f"🟢 Статус: `В ленте (Свободно)` | 📍 {task['city']}")
+                            elif task['status'] == 'В работе':
+                                st.caption(f"🔵 Статус: `В работе` | Исполнитель: {task['worker_name']}")
                             elif task['status'] == 'На проверке':
-                                st.caption(f"🟡 Статус: `В работе / На проверке` | Исполнитель: {task['worker_name']}")
+                                st.caption(f"🟡 Статус: `На проверке` | Исполнитель: {task['worker_name']}")
                             else:
                                 st.caption(f"⚫ Статус: `{task['status']}`")
                         
@@ -293,8 +303,8 @@ if role == "💼 Заказчик":
                                     update_balance("client", task['reward'])
                                     st.success("Задание отозвано, деньги вернулись на баланс!")
                                     st.rerun()
-                            elif task['status'] == 'На проверке':
-                                st.button("🔒 В работе", key=f"lock_{task['id']}", disabled=True, use_container_width=True)
+                            elif task['status'] in ['В работе', 'На проверке']:
+                                st.button("🔒 Заблокировано", key=f"lock_{task['id']}", disabled=True, use_container_width=True)
                         st.write("-" * 10)
 
     with tab_review:
@@ -304,7 +314,7 @@ if role == "💼 Заказчик":
         if df_tasks.empty:
             st.info("Нет задач для проверки.")
         else:
-            review_tasks = df_tasks[df_tasks["status"] == "На проверке"].to_dict(orient="records")
+            review_tasks = df_tasks[(df_tasks["status"] == "На проверке") & (df_tasks["client_name"] == profile_data['name'])].to_dict(orient="records")
             if not review_tasks:
                 st.info("Пока никто не прислал работы на проверку.")
             else:
@@ -352,7 +362,6 @@ if role == "💼 Заказчик":
                                             cancel_task_with_reason(task["id"], task["reward"], evidence.strip(), profile_data['name'])
                                             change_rating_flat(task['worker_name'], -0.6)
                                             
-                                            # Заказчик наказывается, если создано > 2 задач и процент отмен выше 35%
                                             if profile_data['created'] > 2:
                                                 current_rate = ((profile_data['canceled'] + 1) / profile_data['created']) * 100
                                                 if current_rate > 35:
@@ -383,19 +392,107 @@ if role == "💼 Заказчик":
                 st.info(f"⭐ {r['score']} | **{r['author_name']}**: {r['comment']}")
 
 # --- ЛОГИКА ИСПОЛНИТЕЛЯ ---
-elif role == "🕵️ Исполнитель":
+elif role == "🧑‍💻 Исполнитель":
     tab_tasks, tab_withdraw, tab_profile = st.tabs(["📋 Лента заданий", "💸 Вывод средств", "👤 Мой профиль"])
-
+    
     with tab_tasks:
-        st.header("Доступные задания")
-        # ... (здесь должен быть ваш код для фильтрации и отображения заданий) ...
-        # Убедитесь, что все отступы ровные (по 4 пробела)
+        st.header("Лента заданий")
+        col_f1, col_f2 = st.columns(2)
+        with col_f1:
+            filter_city = st.selectbox("📍 Регион:", CITIES)
+        with col_f2:
+            filter_cat = st.selectbox("📁 Категория:", CATEGORIES)
+            
+        df_tasks = get_tasks()
+        if df_tasks.empty:
+            st.info("Заданий нет.")
+        else:
+            # Показываем доступные всем ИЛИ те, что текущий воркер уже взял в работу / отправил на проверку
+            df_filtered = df_tasks[
+                (df_tasks["status"] == "Доступно") | 
+                ((df_tasks["worker_name"] == profile_data['name']) & (df_tasks["status"].isin(["В работе", "На проверке"])))
+            ]
+            
+            if filter_city != "Все регионы":
+                df_filtered = df_filtered[df_filtered["city"] == filter_city]
+            if filter_cat != "Все категории":
+                df_filtered = df_filtered[df_filtered["category"] == filter_cat]
+                
+            available_tasks = df_filtered.to_dict(orient="records")
+            if not available_tasks:
+                st.info("Нет подходящих заданий.")
+            else:
+                for task in available_tasks:
+                    with st.container():
+                        col1, col2 = st.columns([3, 1])
+                        with col1:
+                            st.write(f"**{task['title']}** — 💰 **{task['reward']} MDL**")
+                            st.caption(f"📍 {task['city']} ({task['village']}) | 📁 {task['category']}")
+                            
+                            client_info = get_profile_by_name(task['client_name'])
+                            st.caption(f"👤 Заказчик: {task['client_name']} (⭐ {client_info['rating']})")
+                            
+                            if task['status'] == "В работе":
+                                st.info(f"📞 Связь с Заказчиком: **{client_info['phone']}**")
+                            elif task['status'] == "На проверке":
+                                st.warning("⏳ Ожидает проверки заказчиком")
+                        
+                        with col2:
+                            if task['status'] == "Доступно":
+                                if st.button("🤝 Взять в работу", key=f"take_{task['id']}", use_container_width=True):
+                                    worker_accept_task(task['id'], profile_data['name'])
+                                    st.success("Вы взяли задание в работу! Контакты открыты.")
+                                    st.rerun()
+                            
+                            elif task['status'] == "В работе":
+                                if st.button("📤 На проверку", key=f"send_{task['id']}", use_container_width=True):
+                                    send_to_review(task['id'], profile_data['name'])
+                                    st.success("Задание отправлено на проверку!")
+                                    st.rerun()
+                                    
+                                if st.button("🚫 Отказаться", key=f"abandon_{task['id']}", use_container_width=True):
+                                    worker_abandon_task(task['id'])
+                                    st.warning("Вы отказались от задания.")
+                                    st.rerun()
+                                    
+                            elif task['status'] == "На проверке":
+                                st.button("⏳ Проверяется", key=f"checking_{task['id']}", disabled=True, use_container_width=True)
+                                
+                        st.write("---")
 
     with tab_withdraw:
-        st.header("💸 Вывод заработанных средств")
-        # ...
+        st.header("💸 Вывод средств")
+        st.write(f"Доступно для вывода: **{balance_worker} MDL**")
+        with st.form("withdraw_form"):
+            withdraw_amount = st.number_input("Сумма вывода (MDL):", min_value=50, max_value=int(balance_worker) if balance_worker >= 50 else 50, step=10)
+            card_number = st.text_input("Номер карты (MDL / Visa / Mastercard):", placeholder="4111 1111 1111 1111")
+            submit_w = st.form_submit_button("Запросить выплату")
+            
+            if submit_w:
+                if balance_worker >= withdraw_amount:
+                    if len(card_number.strip()) >= 16:
+                        update_balance("worker", -withdraw_amount)
+                        st.success(f"Заявка на вывод {withdraw_amount} MDL принята в обработку!")
+                        st.rerun()
+                    else:
+                        st.error("Введите корректный номер карты!")
+                else:
+                    st.error("Недостаточно средств на балансе!")
 
     with tab_profile:
         st.header("👤 Мой профиль Исполнителя")
-        # ...
-        
+        with st.form("w_prof"):
+            n = st.text_input("Имя:", value=profile_data['name'])
+            p = st.text_input("Телефон:", value=profile_data['phone'])
+            a = st.text_area("О себе:", value=profile_data['about'])
+            if st.form_submit_button("Сохранить изменения"):
+                update_profile("worker", n, p, a)
+                st.rerun()
+                
+        st.subheader("💬 Отзывы о моей работе")
+        df_revs = get_reviews_for(profile_data['name'])
+        if df_revs.empty:
+            st.caption("Отзывов от заказчиков пока нет.")
+        else:
+            for r in df_revs.to_dict(orient="records"):
+                st.info(f"⭐ {r['score']} | **{r['author_name']}**: {r['comment']}")
