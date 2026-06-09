@@ -386,7 +386,9 @@ if role == "💼 Заказчик":
 elif role == "🧑‍💻 Исполнитель":
     tab_tasks, tab_withdraw, tab_profile = st.tabs(["📋 Лента заданий", "💸 Вывод средств", "👤 Мой профиль"])
     
-    with tab_tasks:
+    
+            st.info("Заданий нет.")
+        else:with tab_tasks:
         st.header("Доступные задания")
         col_f1, col_f2 = st.columns(2)
         with col_f1:
@@ -420,3 +422,51 @@ elif role == "🧑‍💻 Исполнитель":
                                 client_info = get_profile_by_name(task['client_name'])
                                 st.warning("Ожидает проверки заказчиком")
                                 st.info(f"📞 Связаться с Заказчиком ({task['client_name']}): **{client_info['phone']}** (Рейтинг: ⭐ {client_info['rating']})")
+                        
+                        with col2:
+                            if task['status'] == "Доступно":
+                                if st.button("✅ Выполнить", key=f"do_{task['id']}", use_container_width=True):
+                                    send_to_review(task['id'], profile_data['name'])
+                                    st.success("Отправлено на проверку!")
+                                    st.rerun()
+                            elif task['status'] == "На проверке":
+                                if st.button("↩️ Отказаться", key=f"abnd_{task['id']}", use_container_width=True):
+                                    worker_abandon_task(task['id'])
+                                    st.warning("Вы отказались от выполнения задания.")
+                                    st.rerun()
+                        st.write("---")
+
+    with tab_withdraw:
+        st.header("💸 Вывод заработанных средств")
+        st.metric(label="Доступно к выводу:", value=f"{balance_worker} MDL")
+        
+        with st.form("withdraw_form"):
+            card_number = st.text_input("Введите номер карты или кошелька:", placeholder="4276 ____ ____ ____")
+            withdraw_amount = st.number_input("Сумма вывода (MDL):", min_value=20.0, max_value=max(20.0, balance_worker), step=10.0)
+            submit_withdraw = st.form_submit_button("Запросить выплату")
+            
+            if submit_withdraw:
+                if balance_worker >= withdraw_amount:
+                    update_balance("worker", -withdraw_amount)
+                    st.success(f"Заявка на вывод {withdraw_amount} MDL успешно создана!")
+                    st.rerun()
+                else:
+                    st.error("Недостаточно средств на балансе!")
+
+    with tab_profile:
+        st.header("👤 Мой профиль Исполнителя")
+        with st.form("w_prof"):
+            n = st.text_input("Имя:", value=profile_data['name'])
+            p = st.text_input("Телефон:", value=profile_data['phone'])
+            a = st.text_area("О себе (навыки, опыт):", value=profile_data['about'])
+            if st.form_submit_button("Сохранить изменения"):
+                update_profile("worker", n, p, a)
+                st.rerun()
+                
+        st.subheader("💬 Отзывы заказчиков о моей работе")
+        df_revs = get_reviews_for(profile_data['name'])
+        if df_revs.empty:
+            st.caption("Отзывов от заказчиков пока нет.")
+        else:
+            for r in df_revs.to_dict(orient="records"):
+                st.info(f"⭐ {r['score']} | **{r['author_name']}**: {r['comment']}")
