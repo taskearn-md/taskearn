@@ -11,12 +11,12 @@ def init_db():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS tasks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            title TEXT NOT EXISTS,
-            reward REAL NOT EXISTS,
-            status TEXT NOT EXISTS
+            title TEXT NOT NULL,
+            reward REAL NOT NULL,
+            status TEXT NOT NULL
         )
     """)
-    # Таблица для балансов (чтобы они не сбрасывались)
+    # Таблица для балансов
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS balances (
             role TEXT PRIMARY KEY,
@@ -40,7 +40,8 @@ def get_balance(role_type):
     conn = sqlite3.connect("taskearn.db")
     cursor = conn.cursor()
     cursor.execute("SELECT balance FROM balances WHERE role=?", (role_type,))
-    balance = cursor.fetchone()[0]
+    res = cursor.fetchone()
+    balance = res[0] if res else 0.0
     conn.close()
     return balance
 
@@ -110,9 +111,7 @@ if role == "💼 Заказчик":
         
         if submit and task_title:
             if balance_client >= task_reward:
-                # Списываем у заказчика в базу
                 update_balance("client", -task_reward)
-                # Добавляем задачу в базу
                 add_task(task_title, task_reward)
                 st.success(f"Задание опубликовано! {task_reward} MDL заморожены в БД.")
                 st.rerun()
@@ -130,7 +129,6 @@ elif role == "🧑‍💻 Исполнитель":
     st.header("Доступные задания для заработка")
     
     df_tasks = get_tasks()
-    # Фильтруем только доступные задания
     if df_tasks.empty:
         available_tasks = []
     else:
@@ -147,7 +145,6 @@ elif role == "🧑‍💻 Исполнитель":
                     st.write(f"💰 Награда: {task['reward']} MDL (ID: {task['id']})")
                 with col2:
                     if st.button(f"Выполнить", key=f"b_{task['id']}", use_container_width=True):
-                        # Выполняем задачу прямо в БД (внутри функции сразу обновляется и баланс воркера)
                         complete_task(task["id"], task["reward"])
                         st.success(f"Зачислено {task['reward']} MDL.")
                         st.rerun()
