@@ -383,12 +383,10 @@ if role == "💼 Заказчик":
                 st.info(f"⭐ {r['score']} | **{r['author_name']}**: {r['comment']}")
 
 # --- ЛОГИКА ИСПОЛНИТЕЛЯ ---
-elif role == "🧑‍💻 Исполнитель":
+elif role == "🕵️ Исполнитель":
     tab_tasks, tab_withdraw, tab_profile = st.tabs(["📋 Лента заданий", "💸 Вывод средств", "👤 Мой профиль"])
-    
-    
-            st.info("Заданий нет.")
-        else:with tab_tasks:
+
+    with tab_tasks:
         st.header("Доступные задания")
         col_f1, col_f2 = st.columns(2)
         with col_f1:
