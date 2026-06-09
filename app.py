@@ -4,10 +4,10 @@ import sqlite3
 
 # --- РАБОТА С БАЗОЙ ДАННЫХ (SQL) ---
 def init_db():
-    """Создает абсолютно новый файл базы данных v2 и таблицы без конфликтов структуры"""
-    conn = sqlite3.connect("taskearn_v2.db")
+    """Создает абсолютно новый файл базы данных v3 с поддержкой сёл"""
+    conn = sqlite3.connect("taskearn_v3.db")
     cursor = conn.cursor()
-    # Таблица для заданий (сразу со всеми нужными колонками)
+    # Таблица для заданий (добавлени колонки city и village)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS tasks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -15,6 +15,7 @@ def init_db():
             reward REAL NOT NULL,
             status TEXT NOT NULL,
             city TEXT NOT NULL,
+            village TEXT NOT NULL,
             category TEXT NOT NULL
         )
     """)
@@ -31,14 +32,20 @@ def init_db():
     # Стартовые задачи для демонстрации
     cursor.execute("SELECT COUNT(*) FROM tasks")
     if cursor.fetchone()[0] == 0:
-        cursor.execute("INSERT INTO tasks (title, reward, status, city, category) VALUES ('Купить и привезти продукты', 150.0, 'Доступно', 'Кишинёв', '📦 Доставка')")
-        cursor.execute("INSERT INTO tasks (title, reward, status, city, category) VALUES ('Перевести текст с румынского', 200.0, 'Доступно', 'Бельцы', '💻 IT и Тексты')")
+        cursor.execute("""
+            INSERT INTO tasks (title, reward, status, city, village, category) 
+            VALUES ('Помочь собрать урожай черешни', 300.0, 'Доступно', 'Комрат', 'село Конгаз', '🛠️ Ремонт и дом')
+        """)
+        cursor.execute("""
+            INSERT INTO tasks (title, reward, status, city, village, category) 
+            VALUES ('Привезти лекарства из аптеки', 120.0, 'Доступно', 'Оргеев', 'село Пересечино', '📦 Доставка')
+        """)
         
     conn.commit()
     conn.close()
 
 def get_balance(role_type):
-    conn = sqlite3.connect("taskearn_v2.db")
+    conn = sqlite3.connect("taskearn_v3.db")
     cursor = conn.cursor()
     cursor.execute("SELECT balance FROM balances WHERE role=?", (role_type,))
     res = cursor.fetchone()
@@ -47,37 +54,40 @@ def get_balance(role_type):
     return balance
 
 def update_balance(role_type, amount):
-    conn = sqlite3.connect("taskearn_v2.db")
+    conn = sqlite3.connect("taskearn_v3.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE balances SET balance = balance + ? WHERE role=?", (amount, role_type))
     conn.commit()
     conn.close()
 
-def add_task(title, reward, city, category):
-    conn = sqlite3.connect("taskearn_v2.db")
+def add_task(title, reward, city, village, category):
+    conn = sqlite3.connect("taskearn_v3.db")
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO tasks (title, reward, status, city, category) VALUES (?, ?, 'Доступно', ?, ?)", (title, reward, city, category))
+    cursor.execute("""
+        INSERT INTO tasks (title, reward, status, city, village, category) 
+        VALUES (?, ?, 'Доступно', ?, ?, ?)
+    """, (title, reward, city, village, category))
     conn.commit()
     conn.close()
 
 def get_tasks():
-    conn = sqlite3.connect("taskearn_v2.db")
+    conn = sqlite3.connect("taskearn_v3.db")
     df = pd.read_sql_query("SELECT * FROM tasks", conn)
     conn.close()
     return df
 
 def complete_task(task_id, reward):
-    conn = sqlite3.connect("taskearn_v2.db")
+    conn = sqlite3.connect("taskearn_v3.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Выполнено' WHERE id=?", (task_id,))
     cursor.execute("UPDATE balances SET balance = balance + ? WHERE role='worker'", (reward,))
     conn.commit()
     conn.close()
 
-# Инициализируем чистую базу
+# Инициализируем чистую базу v3
 init_db()
 
-CITIES = ["Все города", "Кишинёв", "Бельцы", "Комрат", "Кагул", "Тирасполь", "Бендеры", "Оргеев"]
+CITIES = ["Все регионы", "Кишинёв", "Бельцы", "Комрат", "Кагул", "Оргеев", "Унгены", "Сороки", "Тирасполь"]
 CATEGORIES = ["Все категории", "📦 Доставка", "🛠️ Ремонт и дом", "💻 IT и Тексты", "🚗 Автоуслуги", "Другое"]
 
 # --- ИНТЕРФЕЙС STREAMLIT ---
@@ -109,16 +119,21 @@ if role == "💼 Заказчик":
     with st.form("new_task_form", clear_on_submit=True):
         st.subheader("➕ Разместить новое задание")
         task_title = st.text_input("Что нужно сделать?")
-        task_city = st.selectbox("Город выполнения:", CITIES[1:])
+        
+        task_city = st.selectbox("Ближайший город/райцентр:", CITIES[1:])
+        task_village = st.text_input("Уточните населённый пункт (село, коммуна, улица):", placeholder="Например: село Копчак, село Конгаз или центр")
+        
         task_category = st.selectbox("Категория:", CATEGORIES[1:])
         task_reward = st.number_input("Оплата исполнителю (MDL)", min_value=20, value=100, step=10)
         submit = st.form_submit_button("Опубликовать и заблокировать оплату")
         
         if submit and task_title:
             if balance_client >= task_reward:
+                # Если поле села пустое, запишем просто "город"
+                loc_village = task_village.strip() if task_village.strip() else "город"
                 update_balance("client", -task_reward)
-                add_task(task_title, task_reward, task_city, task_category)
-                st.success(f"Задание опубликовано для г. {task_city}!")
+                add_task(task_title, task_reward, task_city, loc_village, task_category)
+                st.success("Задание успешно опубликовано!")
                 st.rerun()
             else:
                 st.error("Недостаточно средств!")
@@ -127,7 +142,7 @@ if role == "💼 Заказчик":
     st.subheader("📋 Все задания в системе")
     df_tasks = get_tasks()
     if not df_tasks.empty:
-        st.dataframe(df_tasks[["id", "title", "city", "category", "reward", "status"]], use_container_width=True)
+        st.dataframe(df_tasks[["id", "title", "city", "village", "category", "reward", "status"]], use_container_width=True)
 
 # --- ЛОГИКА ИСПОЛНИТЕЛЯ ---
 elif role == "🧑‍💻 Исполнитель":
@@ -138,7 +153,7 @@ elif role == "🧑‍💻 Исполнитель":
         
         col_f1, col_f2 = st.columns(2)
         with col_f1:
-            filter_city = st.selectbox("📍 Фильтр по городу:", CITIES)
+            filter_city = st.selectbox("📍 Фильтр по региону:", CITIES)
         with col_f2:
             filter_cat = st.selectbox("📁 Фильтр по категории:", CATEGORIES)
         
@@ -148,7 +163,7 @@ elif role == "🧑‍💻 Исполнитель":
             st.info("В базе данных пока нет заданий.")
         else:
             df_filtered = df_tasks[df_tasks["status"] == "Доступно"]
-            if filter_city != "Все города":
+            if filter_city != "Все регионы":
                 df_filtered = df_filtered[df_filtered["city"] == filter_city]
             if filter_cat != "Все категории":
                 df_filtered = df_filtered[df_filtered["category"] == filter_cat]
@@ -163,7 +178,8 @@ elif role == "🧑‍💻 Исполнитель":
                         col1, col2 = st.columns([3, 1])
                         with col1:
                             st.write(f"**{task['title']}**")
-                            st.caption(f"📍 {task['city']} | 📁 {task['category']}")
+                            # Красиво выводим город и село рядом
+                            st.caption(f"📍 {task['city']} ({task['village']}) | 📁 {task['category']}")
                             st.write(f"💰 Награда: `{task['reward']} MDL`")
                         with col2:
                             if st.button(f"Выполнить", key=f"b_{task['id']}", use_container_width=True):
@@ -190,4 +206,3 @@ elif role == "🧑‍💻 Исполнитель":
                     update_balance("worker", -withdraw_amount)
                     st.success(f"🎉 Заявка на вывод {withdraw_amount} MDL успешно создана! Деньги будут зачислены на карту {card_number[:4]}**** в течение 15 минут.")
                     st.rerun()
-                    
