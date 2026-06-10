@@ -409,7 +409,7 @@ if user_data['role'] != 'admin':
     st.sidebar.write(f"⭐ **Рейтинг:** `{user_data['rating']} / 5.0`")
     st.sidebar.metric(label="Текущий Баланс", value=f"{user_data['balance']} MDL")
     
-    if st.sidebar.button("введите сумму пополнения (       ))", key="sb_deposit_btn", use_container_width=True):
+    if st.sidebar.button("👛 Пополнение счета (+500 MDL)", key="sb_deposit_btn", use_container_width=True):
         update_balance(user_data['id'], 500.0)
         st.rerun()
         
