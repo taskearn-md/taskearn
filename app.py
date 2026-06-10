@@ -41,7 +41,7 @@ def init_db():
     """)
     cursor.execute("""
         INSERT OR IGNORE INTO users (id, role, username, name, phone, about, balance)  
-        VALUES (999111, 'admin', 'platform_owner', 'Администратор', '000', 'Владелец платформы', 0.0)
+        VALUES (999111, 'admin', 'platform_owner', 'Администратор', '060513709', 'Владелец платформы', 0.0)
     """)
     
     # Таблица для заданий
