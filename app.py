@@ -195,7 +195,7 @@ user_data = get_user_by_id(current_user_id)
 
 if user_data and user_data['role'] != 'admin':
     st.sidebar.metric(label="Ваш личный баланс", value=f"{user_data['balance']} MDL")
-    st.sidebar.markdown(f"🆔 **Ваш ID в системе:** `{user_data['id']}`")
+    st.sidebar.write(f"🆔 **Ваш ID:** {user_data['id']}")
     st.sidebar.write(f"👤 Имя: **{user_data['name']}**")
     st.sidebar.write(f"⭐ Рейтинг: `{user_data['rating']} / 5.0`")
     if user_data['role'] == 'client':
@@ -204,6 +204,7 @@ if user_data and user_data['role'] != 'admin':
             st.rerun()
 elif user_data and user_data['role'] == 'admin':
     st.sidebar.metric(label="Доход платформы", value=f"{user_data['balance']} MDL")
+    st.sidebar.write(f"🆔 **Ваш ID:** {user_data['id']}")
 st.sidebar.write("---")
 
 # --- ЛОГИКА ЗАКАЗЧИКА ---
