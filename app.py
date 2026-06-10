@@ -11,7 +11,7 @@ COMMISSION_RATE = 0.10  # 10% комиссия сервиса
 
 # --- РАБОТА С БАЗОЙ ДАННЫХ (SQL) ---
 def init_db():
-    conn = sqlite3.connect("taskearn_v27.db")
+    conn = sqlite3.connect("taskearn_v28.db")
     cursor = conn.cursor()
     
     # Таблица пользователей
@@ -86,7 +86,7 @@ def init_db():
     conn.close()
 
 def generate_unique_id():
-    conn = sqlite3.connect("taskearn_v27.db")
+    conn = sqlite3.connect("taskearn_v28.db")
     cursor = conn.cursor()
     while True:
         new_id = random.randint(100000, 999999)
@@ -96,7 +96,7 @@ def generate_unique_id():
             return new_id
 
 def register_user(user_id, role, name, phone, about, init_balance=0.0):
-    conn = sqlite3.connect("taskearn_v27.db")
+    conn = sqlite3.connect("taskearn_v28.db")
     cursor = conn.cursor()
     try:
         cursor.execute("""
@@ -111,7 +111,7 @@ def register_user(user_id, role, name, phone, about, init_balance=0.0):
     return success
 
 def get_user_by_id(user_id):
-    conn = sqlite3.connect("taskearn_v27.db")
+    conn = sqlite3.connect("taskearn_v28.db")
     cursor = conn.cursor()
     cursor.execute("SELECT id, role, username, name, phone, about, balance, rating, tasks_created, tasks_canceled FROM users WHERE id=?", (user_id,))
     res = cursor.fetchone()
@@ -125,7 +125,7 @@ def get_user_by_id(user_id):
     return None
 
 def get_user_by_phone(phone):
-    conn = sqlite3.connect("taskearn_v27.db")
+    conn = sqlite3.connect("taskearn_v28.db")
     cursor = conn.cursor()
     cursor.execute("SELECT id FROM users WHERE phone=?", (phone.strip(),))
     res = cursor.fetchone()
@@ -133,21 +133,21 @@ def get_user_by_phone(phone):
     return res[0] if res else None
 
 def update_profile(user_id, name, phone, about):
-    conn = sqlite3.connect("taskearn_v27.db")
+    conn = sqlite3.connect("taskearn_v28.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE users SET name=?, phone=?, about=? WHERE id=?", (name, phone, about, user_id))
     conn.commit()
     conn.close()
 
 def update_balance(user_id, amount):
-    conn = sqlite3.connect("taskearn_v27.db")
+    conn = sqlite3.connect("taskearn_v28.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE users SET balance = balance + ? WHERE id=?", (amount, user_id))
     conn.commit()
     conn.close()
 
 def change_rating_flat(user_id, penalty):
-    conn = sqlite3.connect("taskearn_v27.db")
+    conn = sqlite3.connect("taskearn_v28.db")
     cursor = conn.cursor()
     cursor.execute("SELECT rating FROM users WHERE id=?", (user_id,))
     res = cursor.fetchone()
@@ -159,7 +159,7 @@ def change_rating_flat(user_id, penalty):
 
 def add_task(title, reward, city, village, category, client_id):
     now_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    conn = sqlite3.connect("taskearn_v27.db")
+    conn = sqlite3.connect("taskearn_v28.db")
     cursor = conn.cursor()
     cursor.execute("""
         INSERT INTO tasks (title, reward, status, city, village, category, client_id, created_at) 
@@ -176,34 +176,34 @@ def get_tasks_with_names():
         JOIN users c ON t.client_id = c.id
         LEFT JOIN users w ON t.worker_id = w.id
     """
-    conn = sqlite3.connect("taskearn_v27.db")
+    conn = sqlite3.connect("taskearn_v28.db")
     df = pd.read_sql_query(query, conn)
     conn.close()
     return df
 
 def revoke_free_task(task_id):
-    conn = sqlite3.connect("taskearn_v27.db")
+    conn = sqlite3.connect("taskearn_v28.db")
     cursor = conn.cursor()
     cursor.execute("DELETE FROM tasks WHERE id=?", (task_id,))
     conn.commit()
     conn.close()
 
 def worker_accept_task(task_id, worker_id):
-    conn = sqlite3.connect("taskearn_v27.db")
+    conn = sqlite3.connect("taskearn_v28.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='В работе', worker_id=? WHERE id=?", (worker_id, task_id))
     conn.commit()
     conn.close()
 
 def worker_abandon_task(task_id):
-    conn = sqlite3.connect("taskearn_v27.db")
+    conn = sqlite3.connect("taskearn_v28.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Доступно', worker_id=NULL, worker_evidence='', worker_photo='' WHERE id=?", (task_id,))
     conn.commit()
     conn.close()
 
 def send_to_review(task_id, evidence, photo_b64=""):
-    conn = sqlite3.connect("taskearn_v27.db")
+    conn = sqlite3.connect("taskearn_v28.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='На проверке', worker_evidence=?, worker_photo=? WHERE id=?", (evidence, photo_b64, task_id))
     conn.commit()
@@ -213,7 +213,7 @@ def approve_task(task_id, total_reward, worker_id):
     now_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     admin_cut = total_reward * COMMISSION_RATE
     worker_cut = total_reward - admin_cut
-    conn = sqlite3.connect("taskearn_v27.db")
+    conn = sqlite3.connect("taskearn_v28.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Выполнено', completed_at=? WHERE id=?", (now_str, task_id))
     cursor.execute("UPDATE users SET balance = balance + ? WHERE id=?", (worker_cut, worker_id))
@@ -222,14 +222,14 @@ def approve_task(task_id, total_reward, worker_id):
     conn.close()
 
 def client_dispute_task(task_id, reason):
-    conn = sqlite3.connect("taskearn_v27.db")
+    conn = sqlite3.connect("taskearn_v28.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Оспорено', cancel_reason=? WHERE id=?", (reason, task_id))
     conn.commit()
     conn.close()
 
 def worker_confirm_cancel(task_id, reward, client_id, worker_id):
-    conn = sqlite3.connect("taskearn_v27.db")
+    conn = sqlite3.connect("taskearn_v28.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Отменено' WHERE id=?", (task_id,))
     cursor.execute("UPDATE users SET balance = balance + ? WHERE id=?", (reward, client_id))
@@ -239,7 +239,7 @@ def worker_confirm_cancel(task_id, reward, client_id, worker_id):
     change_rating_flat(worker_id, -0.6)
 
 def worker_send_to_arbitration(task_id, appeal_text):
-    conn = sqlite3.connect("taskearn_v27.db")
+    conn = sqlite3.connect("taskearn_v28.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Арбитраж', appeal_text=? WHERE id=?", (appeal_text, task_id))
     conn.commit()
@@ -247,7 +247,7 @@ def worker_send_to_arbitration(task_id, appeal_text):
 
 def get_monthly_stats(user_id):
     current_month = datetime.datetime.now().strftime('%Y-%m')
-    conn = sqlite3.connect("taskearn_v27.db")
+    conn = sqlite3.connect("taskearn_v28.db")
     cursor = conn.cursor()
     
     cursor.execute("""
@@ -415,7 +415,7 @@ if user_data['role'] != 'admin':
         update_balance(user_data['id'], 500.0)
         st.rerun()
         
-    # 2. Вывод баланса (перенесен ПОД пополнение через компактный popover)
+    # 2. Вывод баланса (ИСПРАВЛЕНО: параметры разметки приведены к стандарту unsafe_allow_html)
     with st.sidebar.popover("💸 Вывод баланса", use_container_width=True):
         st.write(f"Доступные средства: **{user_data['balance']} MDL**")
         with st.form("sidebar_withdraw_form", clear_on_submit=True):
@@ -430,8 +430,8 @@ if user_data['role'] != 'admin':
                 else:
                     st.error("Ошибка: Недостаточно средств или неверная карта.")
 
-    # Небольшой промежуток перед Панелью Управления
-    st.sidebar.markdown("<div style='margin-top: 15px;'></div>", unsafe_allowed_html=True)
+    # ИСПРАВЛЕНО: Опечатка в параметре markdown исправлена на unsafe_allow_html
+    st.sidebar.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
     st.sidebar.subheader("🎛️ Панель управления")
     
     # 3. Основная навигация (Биржа на первом месте по умолчанию)
@@ -463,15 +463,15 @@ if user_data['role'] != 'admin':
                 st.success("Данные обновлены!")
                 st.rerun()
                 
-    # 4. Кнопка выхода спускается в самый низ бокового меню
-    st.sidebar.markdown("<br>" * 5, unsafe_allowed_html=True)
+    # 4. Кнопка выхода спускается в самый низ бового меню (ИСПРАВЛЕНО: unsafe_allow_html)
+    st.sidebar.markdown("<br>" * 5, unsafe_allow_html=True)
     if st.sidebar.button("🚪 Выйти из аккаунта", key="sb_logout_btn", use_container_width=True, type="secondary"):
         st.session_state["logged_in_user_id"] = None
         st.query_params.clear()
         st.rerun()
 else:
     st.sidebar.metric(label="Доход сервиса (Комиссия)", value=f"{user_data['balance']} MDL")
-    st.sidebar.markdown("<br>" * 10, unsafe_allowed_html=True)
+    st.sidebar.markdown("<br>" * 10, unsafe_allow_html=True)  # ИСПРАВЛЕНО: unsafe_allow_html
     if st.sidebar.button("🚪 Выйти из панели", key="sb_logout_admin", use_container_width=True):
         st.session_state["logged_in_user_id"] = None
         st.query_params.clear()
@@ -696,7 +696,7 @@ elif user_data['role'] == 'admin':
                             st.rerun()
                     with col2:
                         if st.button("🔙 Вернуть Заказчику", key=f"win_c_{task['id']}", use_container_width=True):
-                            conn = sqlite3.connect("taskearn_v27.db")
+                            conn = sqlite3.connect("taskearn_v28.db")
                             cursor = conn.cursor()
                             cursor.execute("UPDATE tasks SET status='Отменено' WHERE id=?", (task['id'],))
                             cursor.execute("UPDATE users SET balance = balance + ? WHERE id=?", (task['reward'], task['client_id']))
