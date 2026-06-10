@@ -11,7 +11,7 @@ COMMISSION_RATE = 0.10  # 10% комиссия сервиса
 
 # --- РАБОТА С БАЗОЙ ДАННЫХ (SQL) ---
 def init_db():
-    conn = sqlite3.connect("taskearn_v26.db")
+    conn = sqlite3.connect("taskearn_v27.db")
     cursor = conn.cursor()
     
     # Таблица пользователей
@@ -86,7 +86,7 @@ def init_db():
     conn.close()
 
 def generate_unique_id():
-    conn = sqlite3.connect("taskearn_v26.db")
+    conn = sqlite3.connect("taskearn_v27.db")
     cursor = conn.cursor()
     while True:
         new_id = random.randint(100000, 999999)
@@ -96,7 +96,7 @@ def generate_unique_id():
             return new_id
 
 def register_user(user_id, role, name, phone, about, init_balance=0.0):
-    conn = sqlite3.connect("taskearn_v26.db")
+    conn = sqlite3.connect("taskearn_v27.db")
     cursor = conn.cursor()
     try:
         cursor.execute("""
@@ -111,7 +111,7 @@ def register_user(user_id, role, name, phone, about, init_balance=0.0):
     return success
 
 def get_user_by_id(user_id):
-    conn = sqlite3.connect("taskearn_v26.db")
+    conn = sqlite3.connect("taskearn_v27.db")
     cursor = conn.cursor()
     cursor.execute("SELECT id, role, username, name, phone, about, balance, rating, tasks_created, tasks_canceled FROM users WHERE id=?", (user_id,))
     res = cursor.fetchone()
@@ -125,7 +125,7 @@ def get_user_by_id(user_id):
     return None
 
 def get_user_by_phone(phone):
-    conn = sqlite3.connect("taskearn_v26.db")
+    conn = sqlite3.connect("taskearn_v27.db")
     cursor = conn.cursor()
     cursor.execute("SELECT id FROM users WHERE phone=?", (phone.strip(),))
     res = cursor.fetchone()
@@ -133,21 +133,21 @@ def get_user_by_phone(phone):
     return res[0] if res else None
 
 def update_profile(user_id, name, phone, about):
-    conn = sqlite3.connect("taskearn_v26.db")
+    conn = sqlite3.connect("taskearn_v27.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE users SET name=?, phone=?, about=? WHERE id=?", (name, phone, about, user_id))
     conn.commit()
     conn.close()
 
 def update_balance(user_id, amount):
-    conn = sqlite3.connect("taskearn_v26.db")
+    conn = sqlite3.connect("taskearn_v27.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE users SET balance = balance + ? WHERE id=?", (amount, user_id))
     conn.commit()
     conn.close()
 
 def change_rating_flat(user_id, penalty):
-    conn = sqlite3.connect("taskearn_v26.db")
+    conn = sqlite3.connect("taskearn_v27.db")
     cursor = conn.cursor()
     cursor.execute("SELECT rating FROM users WHERE id=?", (user_id,))
     res = cursor.fetchone()
@@ -159,7 +159,7 @@ def change_rating_flat(user_id, penalty):
 
 def add_task(title, reward, city, village, category, client_id):
     now_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    conn = sqlite3.connect("taskearn_v26.db")
+    conn = sqlite3.connect("taskearn_v27.db")
     cursor = conn.cursor()
     cursor.execute("""
         INSERT INTO tasks (title, reward, status, city, village, category, client_id, created_at) 
@@ -176,34 +176,34 @@ def get_tasks_with_names():
         JOIN users c ON t.client_id = c.id
         LEFT JOIN users w ON t.worker_id = w.id
     """
-    conn = sqlite3.connect("taskearn_v26.db")
+    conn = sqlite3.connect("taskearn_v27.db")
     df = pd.read_sql_query(query, conn)
     conn.close()
     return df
 
 def revoke_free_task(task_id):
-    conn = sqlite3.connect("taskearn_v26.db")
+    conn = sqlite3.connect("taskearn_v27.db")
     cursor = conn.cursor()
     cursor.execute("DELETE FROM tasks WHERE id=?", (task_id,))
     conn.commit()
     conn.close()
 
 def worker_accept_task(task_id, worker_id):
-    conn = sqlite3.connect("taskearn_v26.db")
+    conn = sqlite3.connect("taskearn_v27.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='В работе', worker_id=? WHERE id=?", (worker_id, task_id))
     conn.commit()
     conn.close()
 
 def worker_abandon_task(task_id):
-    conn = sqlite3.connect("taskearn_v26.db")
+    conn = sqlite3.connect("taskearn_v27.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Доступно', worker_id=NULL, worker_evidence='', worker_photo='' WHERE id=?", (task_id,))
     conn.commit()
     conn.close()
 
 def send_to_review(task_id, evidence, photo_b64=""):
-    conn = sqlite3.connect("taskearn_v26.db")
+    conn = sqlite3.connect("taskearn_v27.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='На проверке', worker_evidence=?, worker_photo=? WHERE id=?", (evidence, photo_b64, task_id))
     conn.commit()
@@ -213,7 +213,7 @@ def approve_task(task_id, total_reward, worker_id):
     now_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     admin_cut = total_reward * COMMISSION_RATE
     worker_cut = total_reward - admin_cut
-    conn = sqlite3.connect("taskearn_v26.db")
+    conn = sqlite3.connect("taskearn_v27.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Выполнено', completed_at=? WHERE id=?", (now_str, task_id))
     cursor.execute("UPDATE users SET balance = balance + ? WHERE id=?", (worker_cut, worker_id))
@@ -222,14 +222,14 @@ def approve_task(task_id, total_reward, worker_id):
     conn.close()
 
 def client_dispute_task(task_id, reason):
-    conn = sqlite3.connect("taskearn_v26.db")
+    conn = sqlite3.connect("taskearn_v27.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Оспорено', cancel_reason=? WHERE id=?", (reason, task_id))
     conn.commit()
     conn.close()
 
 def worker_confirm_cancel(task_id, reward, client_id, worker_id):
-    conn = sqlite3.connect("taskearn_v26.db")
+    conn = sqlite3.connect("taskearn_v27.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Отменено' WHERE id=?", (task_id,))
     cursor.execute("UPDATE users SET balance = balance + ? WHERE id=?", (reward, client_id))
@@ -239,7 +239,7 @@ def worker_confirm_cancel(task_id, reward, client_id, worker_id):
     change_rating_flat(worker_id, -0.6)
 
 def worker_send_to_arbitration(task_id, appeal_text):
-    conn = sqlite3.connect("taskearn_v26.db")
+    conn = sqlite3.connect("taskearn_v27.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Арбитраж', appeal_text=? WHERE id=?", (appeal_text, task_id))
     conn.commit()
@@ -247,7 +247,7 @@ def worker_send_to_arbitration(task_id, appeal_text):
 
 def get_monthly_stats(user_id):
     current_month = datetime.datetime.now().strftime('%Y-%m')
-    conn = sqlite3.connect("taskearn_v26.db")
+    conn = sqlite3.connect("taskearn_v27.db")
     cursor = conn.cursor()
     
     cursor.execute("""
@@ -295,6 +295,8 @@ if "pending_phone" not in st.session_state:
     st.session_state["pending_phone"] = None
 if "pending_user_data" not in st.session_state:
     st.session_state["pending_user_data"] = None
+if "current_view" not in st.session_state:
+    st.session_state["current_view"] = "🛠️ Биржа задач"  # Дефолтный экран при входе
 
 # --- ЭКРАН ВХОДА ---
 if st.session_state["logged_in_user_id"] is None:
@@ -305,7 +307,6 @@ if st.session_state["logged_in_user_id"] is None:
         st.info(f"Код верификации отправлен на номер: **{st.session_state['pending_phone']}**")
         input_sms = st.text_input("Введите 4-значный код из SMS:", max_chars=4, key="verification_sms_input")
         
-        # 🔑 ДОБАВЛЕНА КНОПКА ПОДТВЕРЖДЕНИЯ ВМЕСТО ENTER
         if st.button("🎯 Подтвердить код", use_container_width=True, type="primary", key="confirm_sms_code_btn"):
             if input_sms.strip() == st.session_state["sms_code"]:
                 if st.session_state["pending_user_data"] is None:
@@ -314,6 +315,7 @@ if st.session_state["logged_in_user_id"] is None:
                     st.query_params["user_id"] = str(user_id)
                     st.session_state["sms_code"] = None
                     st.session_state["pending_phone"] = None
+                    st.session_state["current_view"] = "🛠️ Биржа задач"  # Гарантируем запуск с биржи
                     st.success("Успешный вход!")
                     st.rerun()
                 else:
@@ -325,6 +327,7 @@ if st.session_state["logged_in_user_id"] is None:
                         st.session_state["sms_code"] = None
                         st.session_state["pending_phone"] = None
                         st.session_state["pending_user_data"] = None
+                        st.session_state["current_view"] = "🛠️ Биржа задач"
                         st.success("Регистрация успешно завершена!")
                         st.rerun()
             else:
@@ -397,7 +400,7 @@ if not user_data:
     st.query_params.clear()
     st.rerun()
 
-# --- БОКОВАЯ ПАНЕЛЬ С ПРОФИЛЕМ ---
+# --- БОКОВАЯ ПАНЕЛЬ (ОСНОВНОЕ МЕНЮ СТРУКТУРЫ) ---
 st.sidebar.header("👤 Личный Кабинет")
 st.sidebar.write(f"👋 Привет, **{user_data['name']}**")
 st.sidebar.write(f"🆔 **ID:** `{user_data['id']}`")
@@ -407,19 +410,44 @@ if user_data['role'] != 'admin':
     st.sidebar.write(f"⭐ **Рейтинг:** `{user_data['rating']} / 5.0`")
     st.sidebar.metric(label="Текущий Баланс", value=f"{user_data['balance']} MDL")
     
-    col_s1, col_s2 = st.sidebar.columns(2)
-    with col_s1:
-        if st.button("👛 +500 MDL", key="sb_deposit_btn", use_container_width=True):
-            update_balance(user_data['id'], 500.0)
-            st.rerun()
-    with col_s2:
-        if st.button("🚪 Выйти", key="sb_logout_btn", use_container_width=True):
-            st.session_state["logged_in_user_id"] = None
-            st.query_params.clear()
-            st.rerun()
-            
+    # 1. Пополнение счета
+    if st.sidebar.button("👛 Пополнение счета (+500 MDL)", key="sb_deposit_btn", use_container_width=True):
+        update_balance(user_data['id'], 500.0)
+        st.rerun()
+        
+    # 2. Вывод баланса (перенесен ПОД пополнение через компактный popover)
+    with st.sidebar.popover("💸 Вывод баланса", use_container_width=True):
+        st.write(f"Доступные средства: **{user_data['balance']} MDL**")
+        with st.form("sidebar_withdraw_form", clear_on_submit=True):
+            withdraw_amount = st.number_input("Какую сумму вывести:", min_value=50, value=50, step=10, key="sb_w_amount")
+            card_number = st.text_input("Номер банковской карты MD (16 цифр):", key="sb_w_card")
+            if st.form_submit_button("Подтвердить выплату"):
+                if user_data['balance'] >= withdraw_amount and len(card_number.strip()) >= 16:
+                    update_balance(user_data['id'], -withdraw_amount)
+                    st.success("Выплата отправлена банком в обработку!")
+                    time.sleep(1)
+                    st.rerun()
+                else:
+                    st.error("Ошибка: Недостаточно средств или неверная карта.")
+
+    # Небольшой промежуток перед Панелью Управления
+    st.sidebar.markdown("<div style='margin-top: 15px;'></div>", unsafe_allowed_html=True)
+    st.sidebar.subheader("🎛️ Панель управления")
+    
+    # 3. Основная навигация (Биржа на первом месте по умолчанию)
+    menu_options = ["🛠️ Биржа задач", "📋 Мои задания", "🔍 Контроль выполнения"]
+    selected_nav = st.sidebar.radio(
+        "Выберите раздел платформы:",
+        options=menu_options,
+        index=menu_options.index(st.session_state["current_view"]),
+        label_visibility="collapsed",
+        key="navigation_radio_control"
+    )
+    st.session_state["current_view"] = selected_nav
+    
     st.sidebar.write("---")
     
+    # Дополнительные системные плашки
     with st.sidebar.expander("📊 Аналитика за месяц", expanded=False):
         stats = get_monthly_stats(user_data['id'])
         st.metric(label="💰 Заработано воркером", value=f"{stats['worker_income']} MDL")
@@ -434,8 +462,16 @@ if user_data['role'] != 'admin':
                 update_profile(user_data['id'], new_name, user_data['phone'], new_about)
                 st.success("Данные обновлены!")
                 st.rerun()
+                
+    # 4. Кнопка выхода спускается в самый низ бокового меню
+    st.sidebar.markdown("<br>" * 5, unsafe_allowed_html=True)
+    if st.sidebar.button("🚪 Выйти из аккаунта", key="sb_logout_btn", use_container_width=True, type="secondary"):
+        st.session_state["logged_in_user_id"] = None
+        st.query_params.clear()
+        st.rerun()
 else:
     st.sidebar.metric(label="Доход сервиса (Комиссия)", value=f"{user_data['balance']} MDL")
+    st.sidebar.markdown("<br>" * 10, unsafe_allowed_html=True)
     if st.sidebar.button("🚪 Выйти из панели", key="sb_logout_admin", use_container_width=True):
         st.session_state["logged_in_user_id"] = None
         st.query_params.clear()
@@ -443,124 +479,13 @@ else:
 
 # --- ГЛАВНЫЙ ЭКРАН ПЛАТФОРМЫ ---
 st.title("🇲🇩 Платформа микрозадач TaskEarn")
+st.write(f"Текущий раздел: **{st.session_state['current_view']}**")
 st.write("---")
 
 if user_data['role'] != 'admin':
-    tab_tasks, tab_review, tab_market, tab_withdraw = st.tabs([
-        "📋 Мои Задания (Заказчик)", 
-        "🔍 Контроль выполнения", 
-        "🛠️ Биржа задач (Исполнитель)", 
-        "💸 Вывод баланса"
-    ])
     
-    # 1. ВКЛАДКА: СОЗДАНИЕ ЗАДАНИЙ (ЗАКАЗЧИК)
-    with tab_tasks:
-        st.header("Разместить новый заказ")
-        with st.form("new_task_form", clear_on_submit=True):
-            task_title = st.text_input("Что нужно сделать (Краткое описание):", key="form_task_title")
-            task_city = st.selectbox("Регион/Город:", CITIES[1:], key="form_task_city")
-            task_village = st.text_input("Укажите село/улицу (если нужно):", key="form_task_village")
-            task_category = st.selectbox("Категория работы:", CATEGORIES[1:], key="form_task_category")
-            task_reward = st.number_input("Бюджет задания (MDL)", min_value=20, value=150, step=10, key="form_task_reward")
-            submit = st.form_submit_button("Запустить в ленту")
-            
-            if submit and task_title:
-                fresh_user = get_user_by_id(user_data['id'])
-                if fresh_user['balance'] >= task_reward:
-                    loc_village = task_village.strip() if task_village.strip() else "город"
-                    update_balance(user_data['id'], -task_reward)
-                    add_task(task_title, task_reward, task_city, loc_village, task_category, user_data['id'])
-                    st.success("Задание успешно добавлено в общую ленту!")
-                    st.toast("🚀 Заказ опубликован!", icon="✅")
-                    time.sleep(0.5)
-                    st.rerun()
-                else:
-                    st.error("Ошибка: Баланс вашего счета ниже стоимости задания. Пополните счет.")
-
-        st.write("---")
-        st.subheader("📋 История ваших заказов")
-        
-        # 🔄 ФРАГМЕНТ: ИСТОРИЯ ЗАКАЗОВ (КНОПКА УДАЛЕНИЯ УБРАНА ПРИ НАЛИЧИИ ИСПОЛНИТЕЛЯ)
-        @st.fragment(run_every=5)
-        def show_my_tasks_live(u_id):
-            df_tasks = get_tasks_with_names()
-            if df_tasks.empty:
-                st.info("Вы еще не создавали заказов.")
-            else:
-                my_tasks = df_tasks[df_tasks["client_id"] == u_id].to_dict(orient="records")
-                if not my_tasks:
-                    st.info("Нет активных заказов.")
-                else:
-                    for task in my_tasks:
-                        with st.container():
-                            # Если задача свободна, делим пространство на две колонки и даём удалить
-                            if task['status'] == 'Доступно':
-                                col_t1, col_t2 = st.columns([3, 1])
-                                with col_t1:
-                                    st.write(f"**{task['title']}** — 💰 {task['reward']} MDL")
-                                    st.caption(f"🟢 Свободно. Ожидает отклика исполнителей.")
-                                with col_t2:
-                                    if st.button("❌ Удалить", key=f"rev_{task['id']}", use_container_width=True):
-                                        revoke_free_task(task['id'])
-                                        update_balance(u_id, task['reward'])
-                                        st.rerun()
-                            # Если задача уже занята, кнопка удаления полностью убирается во избежание багов
-                            else:
-                                st.write(f"**{task['title']}** — 💰 {task['reward']} MDL")
-                                if task['status'] == 'В работе':
-                                    st.info(f"🔵 **Исполняется:** {task['worker_name']} | 📞 {task['worker_phone']}")
-                                elif task['status'] == 'На проверке':
-                                    st.warning(f"🟡 **Контроль:** Исполнитель сдал работу. Проверьте её.")
-                                elif task['status'] == 'Оспорено':
-                                    st.error(f"🟠 Задание отклонено вами. Ожидание апелляции.")
-                                elif task['status'] == 'Арбитраж':
-                                    st.info(f"⚖️ Спор рассматривается модератором.")
-                            st.write("---")
-        show_my_tasks_live(user_data['id'])
-
-    # 2. ВКЛАДКА: КОНТРОЛЬ ЗАКАЗЧИКА
-    with tab_review:
-        st.header("🔍 Проверка присланных работ")
-        
-        @st.fragment(run_every=5)
-        def show_review_live(u_id):
-            df_tasks = get_tasks_with_names()
-            if not df_tasks.empty:
-                review_tasks = df_tasks[(df_tasks["status"] == "На проверке") & (df_tasks["client_id"] == u_id)].to_dict(orient="records")
-                if not review_tasks:
-                    st.info("Нет задач, требующих вашего утверждения.")
-                else:
-                    for task in review_tasks:
-                        st.write(f"### Задача: {task['title']}")
-                        st.markdown(f"> 📄 **Текст отчета от исполнителя:** {task['worker_evidence']}")
-                        
-                        if task.get('worker_photo'):
-                            try:
-                                photo_bytes = base64.b64decode(task['worker_photo'])
-                                st.image(photo_bytes, caption="📸 Прикрепленный фотоотчет исполнителя", use_container_width=True)
-                            except Exception:
-                                st.caption("⚠️ Ошибка загрузки прикрепленного изображения.")
-                                
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            if st.button("✅ Подтвердить выполнение", key=f"app_{task['id']}", use_container_width=True):
-                                approve_task(task["id"], task["reward"], task["worker_id"])
-                                st.success("Оплата переведена воркеру!")
-                                st.rerun()
-                        with col2:
-                            with st.popover("❌ Отклонить отчет", use_container_width=True, key=f"pop_dispute_{task['id']}"):
-                                with st.form(key=f"dis_form_{task['id']}"):
-                                    reason_text = st.text_area("Опишите, что именно не сделано:", key=f"reason_text_input_{task['id']}")
-                                    if st.form_submit_button("🚨 Отправить отказ"):
-                                        if len(reason_text.strip()) >= 5:
-                                            client_dispute_task(task["id"], reason_text.strip())
-                                            st.rerun()
-            else:
-                st.info("Нет задач, требующих вашего утверждения.")
-        show_review_live(user_data['id'])
-
-    # 3. ВКЛАДКА: БИРЖА ТРУДА (ИСПОЛНИТЕЛЬ)
-    with tab_market:
+    # ЭКРАН 1: БИРЖА ТРУДА (ИСПОЛНИТЕЛЬ) - ОТОБРАЖАЕТСЯ ПЕРВЫМ ПРИ ВХОДЕ
+    if st.session_state["current_view"] == "🛠️ Биржа задач":
         st.header("Лента актуальных заданий Молдавии")
         
         @st.fragment(run_every=5)
@@ -633,20 +558,108 @@ if user_data['role'] != 'admin':
                 st.info("Лента пуста или содержит только ваши собственные задания.")
         show_market_live(user_data['id'])
 
-    # 4. ВКЛАДКА: ВЫВОД СРЕДСТВ
-    with tab_withdraw:
-        st.header("💸 Заявка на выплату")
-        st.write(f"Доступные средства: **{user_data['balance']} MDL**")
-        with st.form("withdraw_form"):
-            withdraw_amount = st.number_input("Какую сумму вывести:", min_value=50, value=50, step=10, key="w_amount_input")
-            card_number = st.text_input("Номер банковской карты MD (16 цифр):", key="w_card_input")
-            if st.form_submit_button("Подтвердить выплату"):
-                if user_data['balance'] >= withdraw_amount and len(card_number.strip()) >= 16:
-                    update_balance(user_data['id'], -withdraw_amount)
-                    st.success("Выплата успешно отправлена в обработку банк-партнер!")
+    # ЭКРАН 2: МОИ ЗАДАНИЯ (ЗАКАЗЧИК)
+    elif st.session_state["current_view"] == "📋 Мои задания":
+        st.header("Разместить новый заказ")
+        with st.form("new_task_form", clear_on_submit=True):
+            task_title = st.text_input("Что нужно сделать (Краткое описание):", key="form_task_title")
+            task_city = st.selectbox("Регион/Город:", CITIES[1:], key="form_task_city")
+            task_village = st.text_input("Укажите село/улицу (если нужно):", key="form_task_village")
+            task_category = st.selectbox("Категория работы:", CATEGORIES[1:], key="form_task_category")
+            task_reward = st.number_input("Бюджет задания (MDL)", min_value=20, value=150, step=10, key="form_task_reward")
+            submit = st.form_submit_button("Запустить в ленту")
+            
+            if submit and task_title:
+                fresh_user = get_user_by_id(user_data['id'])
+                if fresh_user['balance'] >= task_reward:
+                    loc_village = task_village.strip() if task_village.strip() else "город"
+                    update_balance(user_data['id'], -task_reward)
+                    add_task(task_title, task_reward, task_city, loc_village, task_category, user_data['id'])
+                    st.success("Задание успешно добавлено в общую ленту!")
+                    st.toast("🚀 Заказ опубликован!", icon="✅")
+                    time.sleep(0.5)
                     st.rerun()
                 else:
-                    st.error("Ошибка: Проверьте баланс или корректность номера карты.")
+                    st.error("Ошибка: Баланс вашего счета ниже стоимости задания. Пополните счет.")
+
+        st.write("---")
+        st.subheader("📋 История ваших заказов")
+        
+        @st.fragment(run_every=5)
+        def show_my_tasks_live(u_id):
+            df_tasks = get_tasks_with_names()
+            if df_tasks.empty:
+                st.info("Вы еще не создавали заказов.")
+            else:
+                my_tasks = df_tasks[df_tasks["client_id"] == u_id].to_dict(orient="records")
+                if not my_tasks:
+                    st.info("Нет активных заказов.")
+                else:
+                    for task in my_tasks:
+                        with st.container():
+                            if task['status'] == 'Доступно':
+                                col_t1, col_t2 = st.columns([3, 1])
+                                with col_t1:
+                                    st.write(f"**{task['title']}** — 💰 {task['reward']} MDL")
+                                    st.caption(f"🟢 Свободно. Ожидает отклика исполнителей.")
+                                with col_t2:
+                                    if st.button("❌ Удалить", key=f"rev_{task['id']}", use_container_width=True):
+                                        revoke_free_task(task['id'])
+                                        update_balance(u_id, task['reward'])
+                                        st.rerun()
+                            else:
+                                st.write(f"**{task['title']}** — 💰 {task['reward']} MDL")
+                                if task['status'] == 'В работе':
+                                    st.info(f"🔵 **Исполняется:** {task['worker_name']} | 📞 {task['worker_phone']}")
+                                elif task['status'] == 'На проверке':
+                                    st.warning(f"🟡 **Контроль:** Исполнитель сдал работу. Проверьте её в меню проверки.")
+                                elif task['status'] == 'Оспорено':
+                                    st.error(f"🟠 Задание отклонено вами. Ожидание апелляции.")
+                                elif task['status'] == 'Арбитраж':
+                                    st.info(f"⚖️ Спор рассматривается модератором.")
+                            st.write("---")
+        show_my_tasks_live(user_data['id'])
+
+    # ЭКРАН 3: КОНТРОЛЬ ВЫПОЛНЕНИЯ (ПРОВЕРКА РАБОТ)
+    elif st.session_state["current_view"] == "🔍 Контроль выполнения":
+        st.header("🔍 Проверка присланных работ")
+        
+        @st.fragment(run_every=5)
+        def show_review_live(u_id):
+            df_tasks = get_tasks_with_names()
+            if not df_tasks.empty:
+                review_tasks = df_tasks[(df_tasks["status"] == "На проверке") & (df_tasks["client_id"] == u_id)].to_dict(orient="records")
+                if not review_tasks:
+                    st.info("Нет задач, требующих вашего утверждения.")
+                else:
+                    for task in review_tasks:
+                        st.write(f"### Задача: {task['title']}")
+                        st.markdown(f"> 📄 **Текст отчета от исполнителя:** {task['worker_evidence']}")
+                        
+                        if task.get('worker_photo'):
+                            try:
+                                photo_bytes = base64.b64decode(task['worker_photo'])
+                                st.image(photo_bytes, caption="📸 Прикрепленный фотоотчет исполнителя", use_container_width=True)
+                            except Exception:
+                                st.caption("⚠️ Ошибка загрузки прикрепленного изображения.")
+                                
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.button("✅ Подтвердить выполнение", key=f"app_{task['id']}", use_container_width=True):
+                                approve_task(task["id"], task["reward"], task["worker_id"])
+                                st.success("Оплата переведена воркеру!")
+                                st.rerun()
+                        with col2:
+                            with st.popover("❌ Отклонить отчет", use_container_width=True, key=f"pop_dispute_{task['id']}"):
+                                with st.form(key=f"dis_form_{task['id']}"):
+                                    reason_text = st.text_area("Опишите, что именно не сделано:", key=f"reason_text_input_{task['id']}")
+                                    if st.form_submit_button("🚨 Отправить отказ"):
+                                        if len(reason_text.strip()) >= 5:
+                                            client_dispute_task(task["id"], reason_text.strip())
+                                            st.rerun()
+            else:
+                st.info("Нет задач, требующих вашего утверждения.")
+        show_review_live(user_data['id'])
 
 # --- ПАНЕЛЬ АДМИНИСТРАТОРА ---
 elif user_data['role'] == 'admin':
@@ -683,7 +696,7 @@ elif user_data['role'] == 'admin':
                             st.rerun()
                     with col2:
                         if st.button("🔙 Вернуть Заказчику", key=f"win_c_{task['id']}", use_container_width=True):
-                            conn = sqlite3.connect("taskearn_v26.db")
+                            conn = sqlite3.connect("taskearn_v27.db")
                             cursor = conn.cursor()
                             cursor.execute("UPDATE tasks SET status='Отменено' WHERE id=?", (task['id'],))
                             cursor.execute("UPDATE users SET balance = balance + ? WHERE id=?", (task['reward'], task['client_id']))
