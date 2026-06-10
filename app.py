@@ -1,54 +1,58 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
-import random
 
-# --- НАСТРОЙКА ---
-DB_NAME = "taskearn_final.db"
-COMMISSION_RATE = 0.10
+# --- КОНФИГУРАЦИЯ ---
+DB_NAME = "taskearn_full.db"
 
-# --- БАЗА ДАННЫХ ---
+# --- БАЗА ДАННЫХ (ФУНКЦИИ) ---
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
+    # Таблица пользователей
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
             phone TEXT UNIQUE NOT NULL,
-            about TEXT,
             balance REAL DEFAULT 0.0,
             role TEXT DEFAULT 'user'
         )
     """)
+    # Таблица заданий
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS tasks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT NOT NULL,
             reward REAL NOT NULL,
-            status TEXT NOT NULL,
+            status TEXT DEFAULT 'Доступно',
             client_id INTEGER NOT NULL,
             worker_id INTEGER,
-            FOREIGN KEY(client_id) REFERENCES users(id),
-            FOREIGN KEY(worker_id) REFERENCES users(id)
+            FOREIGN KEY(client_id) REFERENCES users(id)
         )
     """)
-    # Тестовые данные
-    cursor.execute("INSERT OR IGNORE INTO users (id, name, phone, balance, role) VALUES (1, 'Ион (Тест)', '+37368123456', 1000.0, 'user')")
-    cursor.execute("INSERT OR IGNORE INTO users (id, name, phone, balance, role) VALUES (2, 'Михаил (Тест)', '+37379987654', 0.0, 'user')")
+    # Тестовые пользователи (для старта)
+    cursor.execute("INSERT OR IGNORE INTO users (id, name, phone, balance) VALUES (1, 'Иван', '+37368123456', 500.0)")
+    cursor.execute("INSERT OR IGNORE INTO users (id, name, phone, balance) VALUES (2, 'Мария', '+37379987654', 100.0)")
     conn.commit()
     conn.close()
 
-# --- ФУНКЦИИ ---
-def get_user_by_id(user_id):
+def get_user(user_id):
     conn = sqlite3.connect(DB_NAME)
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users WHERE id=?", (user_id,))
     res = cursor.fetchone()
     conn.close()
-    return {"id": res[0], "name": res[1], "phone": res[2], "about": res[3], "balance": res[4]} if res else None
+    return {"id": res[0], "name": res[1], "phone": res[2], "balance": res[3]} if res else None
 
-def get_tasks():
+def update_user_balance(user_id, amount):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET balance = balance + ? WHERE id=?", (amount, user_id))
+    conn.commit()
+    conn.close()
+
+def get_all_tasks():
     conn = sqlite3.connect(DB_NAME)
     df = pd.read_sql_query("SELECT * FROM tasks", conn)
     conn.close()
@@ -56,16 +60,16 @@ def get_tasks():
 
 # --- ИНИЦИАЛИЗАЦИЯ ---
 init_db()
-st.set_page_config(page_title="TaskEarn", layout="centered")
+st.set_page_config(page_title="TaskEarn PRO", layout="wide")
 
-# Состояния сессии
+# --- СЕССИЯ ---
 if "logged_in_user_id" not in st.session_state: st.session_state["logged_in_user_id"] = None
 if "active_mode" not in st.session_state: st.session_state["active_mode"] = "Заказчик"
 
-# --- ЛОГИКА ВХОДА ---
+# --- ЭКРАН ВХОДА ---
 if st.session_state["logged_in_user_id"] is None:
-    st.title("🇲🇩 Вход в TaskEarn")
-    phone = st.text_input("Введите телефон (для теста: +37368123456 или +37379987654):")
+    st.title("Вход в TaskEarn")
+    phone = st.text_input("Введите номер телефона:")
     if st.button("Войти"):
         conn = sqlite3.connect(DB_NAME)
         cursor = conn.cursor()
@@ -79,74 +83,78 @@ if st.session_state["logged_in_user_id"] is None:
             st.error("Пользователь не найден.")
     st.stop()
 
-# --- ОСНОВНОЙ ИНТЕРФЕЙС ---
-user_data = get_user_by_id(st.session_state["logged_in_user_id"])
+# --- ОСНОВНАЯ ЛОГИКА ---
+user_data = get_user(st.session_state["logged_in_user_id"])
 
-# ИСПРАВЛЕНИЕ ОШИБКИ: Проверка на существование данных
-if user_data is None:
-    st.error("Ошибка: Пользователь не найден. Пожалуйста, перезалогиньтесь.")
-    if st.button("Выйти и войти снова"):
+if not user_data:
+    st.error("Ошибка сессии. Пожалуйста, перезагрузите страницу.")
+    if st.button("Выйти"):
         st.session_state["logged_in_user_id"] = None
         st.rerun()
     st.stop()
 
-# Сайдбар
-st.sidebar.header("Панель управления")
+# --- САЙДБАР ---
+st.sidebar.title("Панель управления")
 st.sidebar.write(f"👤 **{user_data['name']}**")
-st.sidebar.write(f"💰 Баланс: {user_data['balance']} MDL")
+st.sidebar.write(f"💰 Баланс: **{user_data['balance']} MDL**")
+st.sidebar.divider()
 
-# Переключатель режимов
-st.session_state["active_mode"] = st.sidebar.radio(
-    "Выберите режим:", ["Заказчик", "Исполнитель"], key="mode_switch"
-)
+# Переключатель
+mode = st.sidebar.radio("Ваш режим:", ["Заказчик", "Исполнитель"])
+st.session_state["active_mode"] = mode
 
-if st.sidebar.button("Выйти из системы"):
+if st.sidebar.button("Выйти из аккаунта"):
     st.session_state["logged_in_user_id"] = None
     st.rerun()
 
-# --- РОЛЕВАЯ ЛОГИКА ---
+# --- ИНТЕРФЕЙС ЗАКАЗЧИКА ---
 if st.session_state["active_mode"] == "Заказчик":
     st.header("📋 Режим Заказчика")
-    with st.form("new_task"):
-        title = st.text_input("Название задания")
-        reward = st.number_input("Оплата (MDL)", value=100)
-        if st.form_submit_button("Опубликовать"):
-            conn = sqlite3.connect(DB_NAME)
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO tasks (title, reward, status, client_id) VALUES (?, ?, 'Доступно', ?)", 
-                           (title, reward, user_data['id']))
-            conn.commit()
-            conn.close()
-            st.success("Задание в ленте!")
-            st.rerun()
     
-    st.subheader("Ваши заказы")
-    df = get_tasks()
-    my_tasks = df[df["client_id"] == user_data['id']]
-    st.dataframe(my_tasks)
+    with st.expander("➕ Создать новое задание", expanded=True):
+        with st.form("task_form"):
+            title = st.text_input("Название")
+            reward = st.number_input("Оплата", min_value=1.0)
+            if st.form_submit_button("Опубликовать"):
+                conn = sqlite3.connect(DB_NAME)
+                cursor = conn.cursor()
+                cursor.execute("INSERT INTO tasks (title, reward, client_id) VALUES (?, ?, ?)", 
+                               (title, reward, user_data['id']))
+                conn.commit()
+                conn.close()
+                st.success("Задание создано!")
+                st.rerun()
 
-elif st.session_state["active_mode"] == "Исполнитель":
+    st.subheader("Ваши заказы")
+    tasks = get_all_tasks()
+    my_tasks = tasks[tasks['client_id'] == user_data['id']]
+    st.dataframe(my_tasks, use_container_width=True)
+
+# --- ИНТЕРФЕЙС ИСПОЛНИТЕЛЯ ---
+else:
     st.header("🧑‍💻 Режим Исполнителя")
-    st.subheader("Лента заданий")
+    tasks = get_all_tasks()
+    available_tasks = tasks[tasks['status'] == 'Доступно']
+
+    if available_tasks.empty:
+        st.info("Нет доступных заданий.")
     
-    df = get_tasks()
-    tasks = df[df["status"] == "Доступно"].to_dict(orient="records")
-    
-    for task in tasks:
-        with st.container():
-            st.write(f"**{task['title']}** — {task['reward']} MDL")
+    for idx, row in available_tasks.iterrows():
+        with st.container(border=True):
+            cols = st.columns([3, 1])
+            cols[0].write(f"**{row['title']}** — {row['reward']} MDL")
             
-            # --- ЗАЩИТА ОТ САМОИСПОЛНЕНИЯ ---
-            if task['client_id'] == user_data['id']:
-                st.info("🔒 Это ваш заказ. Вы не можете выполнить его сами.")
+            # Логика кнопки
+            if row['client_id'] == user_data['id']:
+                cols[1].info("Ваш заказ")
             else:
-                if st.button(f"Взять заказ №{task['id']}", key=f"btn_{task['id']}"):
+                if cols[1].button("Взять", key=f"btn_{row['id']}"):
                     conn = sqlite3.connect(DB_NAME)
                     cursor = conn.cursor()
                     cursor.execute("UPDATE tasks SET status='В работе', worker_id=? WHERE id=?", 
-                                   (user_data['id'], task['id']))
+                                   (user_data['id'], row['id']))
+                    # Снимаем деньги с заказчика или блокируем их (логика зависит от вас)
                     conn.commit()
                     conn.close()
-                    st.success("Заказ взят в работу!")
+                    st.success("Заказ взят!")
                     st.rerun()
-            st.divider()
