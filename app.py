@@ -4,13 +4,14 @@ import sqlite3
 import random
 import time
 import datetime
+import base64
 
 # --- НАСТРОЙКА ПЛАТФОРМЫ ---
 COMMISSION_RATE = 0.10  # 10% комиссия сервиса
 
 # --- РАБОТА С БАЗОЙ ДАННЫХ (SQL) ---
 def init_db():
-    conn = sqlite3.connect("taskearn_v23.db")
+    conn = sqlite3.connect("taskearn_v24.db")
     cursor = conn.cursor()
     
     # Таблица пользователей
@@ -41,7 +42,7 @@ def init_db():
     """)
     cursor.execute("""
         INSERT OR IGNORE INTO users (id, role, username, name, phone, about, balance)  
-        VALUES (999111, 'admin', 'platform_owner', 'Администратор', '060513709', 'Владелец платформы', 0.0)
+        VALUES (999111, 'admin', 'platform_owner', 'Администратор', '000', 'Владелец платформы', 0.0)
     """)
     
     # Таблица для заданий
@@ -58,6 +59,7 @@ def init_db():
             worker_id INTEGER DEFAULT NULL,
             cancel_reason TEXT DEFAULT '',
             worker_evidence TEXT DEFAULT '',
+            worker_photo TEXT DEFAULT '',
             appeal_text TEXT DEFAULT '',
             created_at TEXT,
             completed_at TEXT,
@@ -66,7 +68,7 @@ def init_db():
         )
     """)
     
-    # Автоматическая миграция колонок дат
+    # Автоматическая миграция колонок дат и фото
     try:
         cursor.execute("ALTER TABLE tasks ADD COLUMN created_at TEXT")
     except sqlite3.OperationalError:
@@ -75,12 +77,16 @@ def init_db():
         cursor.execute("ALTER TABLE tasks ADD COLUMN completed_at TEXT")
     except sqlite3.OperationalError:
         pass
+    try:
+        cursor.execute("ALTER TABLE tasks ADD COLUMN worker_photo TEXT DEFAULT ''")
+    except sqlite3.OperationalError:
+        pass
         
     conn.commit()
     conn.close()
 
 def generate_unique_id():
-    conn = sqlite3.connect("taskearn_v23.db")
+    conn = sqlite3.connect("taskearn_v24.db")
     cursor = conn.cursor()
     while True:
         new_id = random.randint(100000, 999999)
@@ -90,7 +96,7 @@ def generate_unique_id():
             return new_id
 
 def register_user(user_id, role, name, phone, about, init_balance=0.0):
-    conn = sqlite3.connect("taskearn_v23.db")
+    conn = sqlite3.connect("taskearn_v24.db")
     cursor = conn.cursor()
     try:
         cursor.execute("""
@@ -105,7 +111,7 @@ def register_user(user_id, role, name, phone, about, init_balance=0.0):
     return success
 
 def get_user_by_id(user_id):
-    conn = sqlite3.connect("taskearn_v23.db")
+    conn = sqlite3.connect("taskearn_v24.db")
     cursor = conn.cursor()
     cursor.execute("SELECT id, role, username, name, phone, about, balance, rating, tasks_created, tasks_canceled FROM users WHERE id=?", (user_id,))
     res = cursor.fetchone()
@@ -119,7 +125,7 @@ def get_user_by_id(user_id):
     return None
 
 def get_user_by_phone(phone):
-    conn = sqlite3.connect("taskearn_v23.db")
+    conn = sqlite3.connect("taskearn_v24.db")
     cursor = conn.cursor()
     cursor.execute("SELECT id FROM users WHERE phone=?", (phone.strip(),))
     res = cursor.fetchone()
@@ -127,21 +133,21 @@ def get_user_by_phone(phone):
     return res[0] if res else None
 
 def update_profile(user_id, name, phone, about):
-    conn = sqlite3.connect("taskearn_v23.db")
+    conn = sqlite3.connect("taskearn_v24.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE users SET name=?, phone=?, about=? WHERE id=?", (name, phone, about, user_id))
     conn.commit()
     conn.close()
 
 def update_balance(user_id, amount):
-    conn = sqlite3.connect("taskearn_v23.db")
+    conn = sqlite3.connect("taskearn_v24.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE users SET balance = balance + ? WHERE id=?", (amount, user_id))
     conn.commit()
     conn.close()
 
 def change_rating_flat(user_id, penalty):
-    conn = sqlite3.connect("taskearn_v23.db")
+    conn = sqlite3.connect("taskearn_v24.db")
     cursor = conn.cursor()
     cursor.execute("SELECT rating FROM users WHERE id=?", (user_id,))
     res = cursor.fetchone()
@@ -153,7 +159,7 @@ def change_rating_flat(user_id, penalty):
 
 def add_task(title, reward, city, village, category, client_id):
     now_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    conn = sqlite3.connect("taskearn_v23.db")
+    conn = sqlite3.connect("taskearn_v24.db")
     cursor = conn.cursor()
     cursor.execute("""
         INSERT INTO tasks (title, reward, status, city, village, category, client_id, created_at) 
@@ -163,7 +169,6 @@ def add_task(title, reward, city, village, category, client_id):
     conn.commit()
     conn.close()
 
-# 📞 ДОБАВИЛИ В ВЫБОРКУ c.phone КАК client_phone
 def get_tasks_with_names():
     query = """
         SELECT t.*, c.name AS client_name, c.phone AS client_phone, w.name AS worker_name, w.phone AS worker_phone, w.rating AS worker_rating
@@ -171,36 +176,37 @@ def get_tasks_with_names():
         JOIN users c ON t.client_id = c.id
         LEFT JOIN users w ON t.worker_id = w.id
     """
-    conn = sqlite3.connect("taskearn_v23.db")
+    conn = sqlite3.connect("taskearn_v24.db")
     df = pd.read_sql_query(query, conn)
     conn.close()
     return df
 
 def revoke_free_task(task_id):
-    conn = sqlite3.connect("taskearn_v23.db")
+    conn = sqlite3.connect("taskearn_v24.db")
     cursor = conn.cursor()
     cursor.execute("DELETE FROM tasks WHERE id=?", (task_id,))
     conn.commit()
     conn.close()
 
 def worker_accept_task(task_id, worker_id):
-    conn = sqlite3.connect("taskearn_v23.db")
+    conn = sqlite3.connect("taskearn_v24.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='В работе', worker_id=? WHERE id=?", (worker_id, task_id))
     conn.commit()
     conn.close()
 
 def worker_abandon_task(task_id):
-    conn = sqlite3.connect("taskearn_v23.db")
+    conn = sqlite3.connect("taskearn_v24.db")
     cursor = conn.cursor()
-    cursor.execute("UPDATE tasks SET status='Доступно', worker_id=NULL, worker_evidence='' WHERE id=?", (task_id,))
+    cursor.execute("UPDATE tasks SET status='Доступно', worker_id=NULL, worker_evidence='', worker_photo='' WHERE id=?", (task_id,))
     conn.commit()
     conn.close()
 
-def send_to_review(task_id, evidence):
-    conn = sqlite3.connect("taskearn_v23.db")
+# 📸 ОБНОВИЛИ ФУНКЦИЮ: ТЕПЕРЬ ПРИНИМАЕТ СТРОКУ ФОТОГРАФИИ
+def send_to_review(task_id, evidence, photo_b64=""):
+    conn = sqlite3.connect("taskearn_v24.db")
     cursor = conn.cursor()
-    cursor.execute("UPDATE tasks SET status='На проверке', worker_evidence=? WHERE id=?", (evidence, task_id))
+    cursor.execute("UPDATE tasks SET status='На проверке', worker_evidence=?, worker_photo=? WHERE id=?", (evidence, photo_b64, task_id))
     conn.commit()
     conn.close()
 
@@ -208,7 +214,7 @@ def approve_task(task_id, total_reward, worker_id):
     now_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     admin_cut = total_reward * COMMISSION_RATE
     worker_cut = total_reward - admin_cut
-    conn = sqlite3.connect("taskearn_v23.db")
+    conn = sqlite3.connect("taskearn_v24.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Выполнено', completed_at=? WHERE id=?", (now_str, task_id))
     cursor.execute("UPDATE users SET balance = balance + ? WHERE id=?", (worker_cut, worker_id))
@@ -217,14 +223,14 @@ def approve_task(task_id, total_reward, worker_id):
     conn.close()
 
 def client_dispute_task(task_id, reason):
-    conn = sqlite3.connect("taskearn_v23.db")
+    conn = sqlite3.connect("taskearn_v24.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Оспорено', cancel_reason=? WHERE id=?", (reason, task_id))
     conn.commit()
     conn.close()
 
 def worker_confirm_cancel(task_id, reward, client_id, worker_id):
-    conn = sqlite3.connect("taskearn_v23.db")
+    conn = sqlite3.connect("taskearn_v24.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Отменено' WHERE id=?", (task_id,))
     cursor.execute("UPDATE users SET balance = balance + ? WHERE id=?", (reward, client_id))
@@ -234,7 +240,7 @@ def worker_confirm_cancel(task_id, reward, client_id, worker_id):
     change_rating_flat(worker_id, -0.6)
 
 def worker_send_to_arbitration(task_id, appeal_text):
-    conn = sqlite3.connect("taskearn_v23.db")
+    conn = sqlite3.connect("taskearn_v24.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Арбитраж', appeal_text=? WHERE id=?", (appeal_text, task_id))
     conn.commit()
@@ -242,7 +248,7 @@ def worker_send_to_arbitration(task_id, appeal_text):
 
 def get_monthly_stats(user_id):
     current_month = datetime.datetime.now().strftime('%Y-%m')
-    conn = sqlite3.connect("taskearn_v23.db")
+    conn = sqlite3.connect("taskearn_v24.db")
     cursor = conn.cursor()
     
     # 1. Исполнитель
@@ -505,7 +511,7 @@ if user_data['role'] != 'admin':
                                     st.rerun()
                         st.write("---")
 
-    # 2. ВКЛАДКА: КОНТРОЛЬ ЗАКАЗЧИКА
+    # 2. ВКЛАДКА: КОНТРОЛЬ ЗАКАЗЧИКА (ОТОБРАЖЕНИЕ ФОТООТЧЕТА)
     with tab_review:
         st.header("🔍 Проверка присланных работ")
         df_tasks = get_tasks_with_names()
@@ -518,6 +524,14 @@ if user_data['role'] != 'admin':
                     st.write(f"### Задача: {task['title']}")
                     st.markdown(f"> 📄 **Текст отчета от исполнителя:** {task['worker_evidence']}")
                     
+                    # 📷 ПОКАЗЫВАЕМ ФОТО ЗАКАЗЧИКУ, ЕСЛИ ОНО ЕСТЬ
+                    if task.get('worker_photo'):
+                        try:
+                            photo_bytes = base64.b64decode(task['worker_photo'])
+                            st.image(photo_bytes, caption="📸 Прикрепленный фотоотчет исполнителя", use_container_width=True)
+                        except Exception:
+                            st.caption("⚠️ Ошибка загрузки прикрепленного изображения.")
+                            
                     col1, col2 = st.columns(2)
                     with col1:
                         if st.button("✅ Подтвердить выполнение", key=f"app_{task['id']}", use_container_width=True):
@@ -533,7 +547,7 @@ if user_data['role'] != 'admin':
                                         client_dispute_task(task["id"], reason_text.strip())
                                         st.rerun()
 
-    # 3. ВКЛАДКА: БИРЖА ТРУДА (ИСПОЛНИТЕЛЬ)
+    # 3. ВКЛАДКА: БИРЖА ТРУДА (ЗАГРУЗКА ФОТООТЧЕТА)
     with tab_market:
         st.header("Лента актуальных заданий Молдавии")
         df_tasks = get_tasks_with_names()
@@ -554,13 +568,14 @@ if user_data['role'] != 'admin':
                             st.write(f"💰 Оплата (чистая): **{clean_reward} MDL**")
                             st.caption(f"📍 Локация: {task['city']}, {task['village']}")
                             
-                            # 🔄 СТРОКА СВЯЗИ С ЗАКАЗЧИКОМ ПРИ СТАТУСЕ "В РАБОТЕ"
                             if task['status'] == "В работе":
                                 st.info(f"📞 **Связаться с заказчиком:** {task['client_name']} ({task['client_phone']})")
                             elif task['status'] == "Оспорено":
                                 st.error(f"⚠️ Отклонено! Причина заказчика: «{task['cancel_reason']}»")
                             elif task['status'] == "На проверке":
                                 st.warning("⏳ Проверяется заказчиком. Ожидайте.")
+                                if task.get('worker_photo'):
+                                    st.caption("📸 Фотоотчет успешно отправлен.")
                             elif task['status'] == "Арбитраж":
                                 st.info("⚖️ Дело передано независимому арбитру.")
                         with col2:
@@ -569,13 +584,23 @@ if user_data['role'] != 'admin':
                                     worker_accept_task(task['id'], user_data['id'])
                                     st.rerun()
                             elif task['status'] == "В работе":
+                                # 📤 ФОРМА СДАЧИ С ЗАГРУЗКОЙ ФОТО
                                 with st.popover("📤 Сдать готовую работу", use_container_width=True, key=f"pop_review_{task['id']}"):
                                     with st.form(key=f"ev_f_{task['id']}"):
                                         ev_text = st.text_area("Опишите результаты (ссылки/текст):", key=f"evidence_input_{task['id']}")
+                                        uploaded_file = st.file_uploader("📸 Прикрепить фотоотчет (необязательно):", type=["jpg", "jpeg", "png"], key=f"file_uploader_{task['id']}")
+                                        
                                         if st.form_submit_button("Сдать заказ"):
-                                            if ev_text.strip():
-                                                send_to_review(task['id'], ev_text.strip())
+                                            if ev_text.strip() or uploaded_file is not None:
+                                                photo_b64 = ""
+                                                if uploaded_file is not None:
+                                                    # Конвертируем файл в Base64-строку для SQL
+                                                    photo_b64 = base64.b64encode(uploaded_file.read()).decode('utf-8')
+                                                send_to_review(task['id'], ev_text.strip(), photo_b64)
                                                 st.rerun()
+                                            else:
+                                                st.error("Напишите текст отчета или прикрепите фото.")
+                                                
                                 if st.button("🚫 Отказаться от задачи", key=f"abd_{task['id']}", use_container_width=True):
                                     worker_abandon_task(task['id'])
                                     st.rerun()
@@ -607,7 +632,7 @@ if user_data['role'] != 'admin':
                 else:
                     st.error("Ошибка: Проверьте баланс или корректность номера карты.")
 
-# --- ПАНЕЛЬ АДМИНИСТРАТОРА (АРБИТРАЖ) ---
+# --- ПАНЕЛЬ АДМИНИСТРАТОРА (АРБИТРАЖ С ПРОСМОТРОМ ФОТО) ---
 elif user_data['role'] == 'admin':
     st.header("👑 Панель Арбитража")
     df_tasks = get_tasks_with_names()
@@ -622,6 +647,15 @@ elif user_data['role'] == 'admin':
                 st.write(f"**Исполнитель:** {task['worker_name']} (ID: {task['worker_id']})")
                 
                 st.info(f"📄 **Отчет воркера:** {task['worker_evidence']}")
+                
+                # 📷 ОТОБРАЖЕНИЕ ФОТО В ПАНЕЛИ АДМИНА
+                if task.get('worker_photo'):
+                    try:
+                        photo_bytes = base64.b64decode(task['worker_photo'])
+                        st.image(photo_bytes, caption="📸 Фотодоказательство исполнителя", use_container_width=True)
+                    except Exception:
+                        st.caption("⚠️ Ошибка отображения фотоотчета.")
+                        
                 st.warning(f"❌ **Претензия заказчика:** {task['cancel_reason']}")
                 st.error(f"🚨 **Апелляция воркера:** {task['appeal_text']}")
                 
@@ -635,7 +669,7 @@ elif user_data['role'] == 'admin':
                 
                 with col2:
                     if st.button("🔙 Вернуть Заказчику", key=f"win_c_{task['id']}", use_container_width=True):
-                        conn = sqlite3.connect("taskearn_v23.db")
+                        conn = sqlite3.connect("taskearn_v24.db")
                         cursor = conn.cursor()
                         cursor.execute("UPDATE tasks SET status='Отменено' WHERE id=?", (task['id'],))
                         cursor.execute("UPDATE users SET balance = balance + ? WHERE id=?", (task['reward'], task['client_id']))
