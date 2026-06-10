@@ -551,32 +551,42 @@ elif user_data['role'] == 'worker':
 
 # --- ПАНЕЛЬ АДМИНИСТРАТОРА (АРБИТРАЖ) ---
 elif user_data['role'] == 'admin':
-    st.header("👑 Судейство и Арбитраж Системы")
+    st.header("👑 Панель Арбитража")
     df_tasks = get_tasks_with_names()
-    if not df_tasks.empty:
-        arbitration_tasks = df_tasks[df_tasks["status"] == "Арбитраж"].to_dict(orient="records")
-        if not arbitration_tasks:
-            st.info("Нет открытых споров между пользователями.")
-        else:
-            for task in arbitration_tasks:
-                with st.expander(f"⚖️ Разбор спора: {task['title']}"):
-                    st.write(f"**Заказчик (ID: {task['client_id']}):** {task['client_name']}")
-                    st.write(f"**Исполнитель (ID: {task['worker_id']}):** {task['worker_name']}")
-                    st.write(f"📋 **Что прислал воркер:** {task['worker_evidence']}")
-                    st.write(f"❌ **Причина претензии клиента:** {task['cancel_reason']}")
-                    st.write(f"🚨 **Апелляция воркера:** {task['appeal_text']}")
-                    
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        if st.button("Победа Исполнителя (Выплатить) ✅", key=f"win_w_{task['id']}", use_container_width=True):
-                            approve_task(task['id'], task['reward'], task['worker_id'])
-                            st.rerun()
-                    with col2:
-                        if st.button("Победа Заказчика (Вернуть) ❌", key=f"win_c_{task['id']}", use_container_width=True):
-                            conn = sqlite3.connect("taskearn_v20.db")
-                            cursor = conn.cursor()
-                            cursor.execute("UPDATE tasks SET status='Отменено' WHERE id=?", (task['id'],))
-                            cursor.execute("UPDATE users SET balance = balance + ? WHERE id=?", (task['reward'], task['client_id']))
-                            conn.commit()
-                            conn.close()
-                            st.rerun()
+    
+    arbitration_tasks = df_tasks[df_tasks["status"] == "Арбитраж"].to_dict(orient="records")
+    if not arbitration_tasks:
+        st.info("Споров нет. Система работает штатно.")
+    else:
+        for task in arbitration_tasks:
+            with st.expander(f"⚖️ Спор по заданию #{task['id']}: {task['title']}"):
+                st.write(f"**Заказчик:** {task['client_name']} (ID: {task['client_id']})")
+                st.write(f"**Исполнитель:** {task['worker_name']} (ID: {task['worker_id']})")
+                
+                # Вывод ваших 3 аргументов/доказательств
+                st.info(f"📄 **Отчет воркера:** {task['worker_evidence']}")
+                st.warning(f"❌ **Претензия заказчика:** {task['cancel_reason']}")
+                st.error(f"🚨 **Апелляция воркера:** {task['appeal_text']}")
+                
+                col1, col2 = st.columns(2)
+                
+                # Решение в пользу Исполнителя
+                with col1:
+                    if st.button("✅ Выплатить Исполнителю", key=f"win_w_{task['id']}", use_container_width=True):
+                        # Начисляем деньги воркеру
+                        approve_task(task['id'], task['reward'], task['worker_id'])
+                        st.success("Решение принято: деньги отправлены исполнителю.")
+                        st.rerun()
+                
+                # Решение в пользу Заказчика
+                with col2:
+                    if st.button("🔙 Вернуть Заказчику", key=f"win_c_{task['id']}", use_container_width=True):
+                        conn = sqlite3.connect("taskearn_v20.db")
+                        cursor = conn.cursor()
+                        # Возвращаем бюджет заказчику и закрываем задание
+                        cursor.execute("UPDATE tasks SET status='Отменено' WHERE id=?", (task['id'],))
+                        cursor.execute("UPDATE users SET balance = balance + ? WHERE id=?", (task['reward'], task['client_id']))
+                        conn.commit()
+                        conn.close()
+                        st.success("Решение принято: деньги возвращены заказчику.")
+                        st.rerun()
