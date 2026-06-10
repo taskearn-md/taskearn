@@ -2,34 +2,24 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 import random
+import time
 
 # --- НАСТРОЙКА ПЛАТФОРМЫ ---
 COMMISSION_RATE = 0.10  # 10% комиссия сервиса
 
-def generate_unique_id():
-    """Генерирует случайный уникальный 6-значный ID"""
-    conn = sqlite3.connect("taskearn_v19.db")
-    cursor = conn.cursor()
-    while True:
-        new_id = random.randint(100000, 999999)
-        cursor.execute("SELECT id FROM users WHERE id = ?", (new_id,))
-        if not cursor.fetchone():
-            conn.close()
-            return new_id
-
 # --- РАБОТА С БАЗОЙ ДАННЫХ (SQL) ---
 def init_db():
-    conn = sqlite3.connect("taskearn_v19.db")
+    conn = sqlite3.connect("taskearn_v20.db")
     cursor = conn.cursor()
     
-    # Таблица пользователей
+    # Таблица пользователей (Теперь UNIQUE стоит на номере телефона!)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY,     
             role TEXT NOT NULL,
             username TEXT UNIQUE,
             name TEXT NOT NULL,
-            phone TEXT NOT NULL,
+            phone TEXT UNIQUE NOT NULL, -- Вход по уникальному телефону
             about TEXT,
             balance REAL DEFAULT 0.0,
             rating REAL DEFAULT 5.0,
@@ -39,14 +29,14 @@ def init_db():
         )
     """)
     
-    # Создаем дефолтных демо-пользователей для тестов
+    # Создаем дефолтных пользователей для тестов
     cursor.execute("""
         INSERT OR IGNORE INTO users (id, role, username, name, phone, about, balance) 
-        VALUES (482910, 'client', 'ion_cheban', 'Ион Чебан (Заказчик)', '+373 68 123 456', 'Заказчик из Кишинева.', 1000.0)
+        VALUES (482910, 'client', 'ion_cheban', 'Ион Чебан (Заказчик)', '+37368123456', 'Заказчик из Кишинева.', 1000.0)
     """)
     cursor.execute("""
         INSERT OR IGNORE INTO users (id, role, username, name, phone, about, balance) 
-        VALUES (730145, 'worker', 'mihail_lupu', 'Михаил Лупу (Воркер)', '+373 79 987 654', 'Исполнитель из Комрата.', 0.0)
+        VALUES (730145, 'worker', 'mihail_lupu', 'Михаил Лупу (Воркер)', '+37379987654', 'Исполнитель из Комрата.', 0.0)
     """)
     cursor.execute("""
         INSERT OR IGNORE INTO users (id, role, username, name, phone, about, balance) 
@@ -75,8 +65,18 @@ def init_db():
     conn.commit()
     conn.close()
 
+def generate_unique_id():
+    conn = sqlite3.connect("taskearn_v20.db")
+    cursor = conn.cursor()
+    while True:
+        new_id = random.randint(100000, 999999)
+        cursor.execute("SELECT id FROM users WHERE id = ?", (new_id,))
+        if not cursor.fetchone():
+            conn.close()
+            return new_id
+
 def register_user(user_id, role, name, phone, about, init_balance=0.0):
-    conn = sqlite3.connect("taskearn_v19.db")
+    conn = sqlite3.connect("taskearn_v20.db")
     cursor = conn.cursor()
     try:
         cursor.execute("""
@@ -91,7 +91,7 @@ def register_user(user_id, role, name, phone, about, init_balance=0.0):
     return success
 
 def get_user_by_id(user_id):
-    conn = sqlite3.connect("taskearn_v19.db")
+    conn = sqlite3.connect("taskearn_v20.db")
     cursor = conn.cursor()
     cursor.execute("SELECT id, role, username, name, phone, about, balance, rating, tasks_created, tasks_canceled FROM users WHERE id=?", (user_id,))
     res = cursor.fetchone()
@@ -104,22 +104,30 @@ def get_user_by_id(user_id):
         }
     return None
 
+def get_user_by_phone(phone):
+    conn = sqlite3.connect("taskearn_v20.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM users WHERE phone=?", (phone.strip(),))
+    res = cursor.fetchone()
+    conn.close()
+    return res[0] if res else None
+
 def update_profile(user_id, name, phone, about):
-    conn = sqlite3.connect("taskearn_v19.db")
+    conn = sqlite3.connect("taskearn_v20.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE users SET name=?, phone=?, about=? WHERE id=?", (name, phone, about, user_id))
     conn.commit()
     conn.close()
 
 def update_balance(user_id, amount):
-    conn = sqlite3.connect("taskearn_v19.db")
+    conn = sqlite3.connect("taskearn_v20.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE users SET balance = balance + ? WHERE id=?", (amount, user_id))
     conn.commit()
     conn.close()
 
 def change_rating_flat(user_id, penalty):
-    conn = sqlite3.connect("taskearn_v19.db")
+    conn = sqlite3.connect("taskearn_v20.db")
     cursor = conn.cursor()
     cursor.execute("SELECT rating FROM users WHERE id=?", (user_id,))
     res = cursor.fetchone()
@@ -130,7 +138,7 @@ def change_rating_flat(user_id, penalty):
     conn.close()
 
 def add_task(title, reward, city, village, category, client_id):
-    conn = sqlite3.connect("taskearn_v19.db")
+    conn = sqlite3.connect("taskearn_v20.db")
     cursor = conn.cursor()
     cursor.execute("INSERT INTO tasks (title, reward, status, city, village, category, client_id) VALUES (?, ?, 'Доступно', ?, ?, ?, ?)", 
                    (title, reward, city, village, category, client_id))
@@ -145,34 +153,34 @@ def get_tasks_with_names():
         JOIN users c ON t.client_id = c.id
         LEFT JOIN users w ON t.worker_id = w.id
     """
-    conn = sqlite3.connect("taskearn_v19.db")
+    conn = sqlite3.connect("taskearn_v20.db")
     df = pd.read_sql_query(query, conn)
     conn.close()
     return df
 
 def revoke_free_task(task_id):
-    conn = sqlite3.connect("taskearn_v19.db")
+    conn = sqlite3.connect("taskearn_v20.db")
     cursor = conn.cursor()
     cursor.execute("DELETE FROM tasks WHERE id=?", (task_id,))
     conn.commit()
     conn.close()
 
 def worker_accept_task(task_id, worker_id):
-    conn = sqlite3.connect("taskearn_v19.db")
+    conn = sqlite3.connect("taskearn_v20.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='В работе', worker_id=? WHERE id=?", (worker_id, task_id))
     conn.commit()
     conn.close()
 
 def worker_abandon_task(task_id):
-    conn = sqlite3.connect("taskearn_v19.db")
+    conn = sqlite3.connect("taskearn_v20.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Доступно', worker_id=NULL, worker_evidence='' WHERE id=?", (task_id,))
     conn.commit()
     conn.close()
 
 def send_to_review(task_id, evidence):
-    conn = sqlite3.connect("taskearn_v19.db")
+    conn = sqlite3.connect("taskearn_v20.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='На проверке', worker_evidence=? WHERE id=?", (evidence, task_id))
     conn.commit()
@@ -181,7 +189,7 @@ def send_to_review(task_id, evidence):
 def approve_task(task_id, total_reward, worker_id):
     admin_cut = total_reward * COMMISSION_RATE
     worker_cut = total_reward - admin_cut
-    conn = sqlite3.connect("taskearn_v19.db")
+    conn = sqlite3.connect("taskearn_v20.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Выполнено' WHERE id=?", (task_id,))
     cursor.execute("UPDATE users SET balance = balance + ? WHERE id=?", (worker_cut, worker_id))
@@ -190,14 +198,14 @@ def approve_task(task_id, total_reward, worker_id):
     conn.close()
 
 def client_dispute_task(task_id, reason):
-    conn = sqlite3.connect("taskearn_v19.db")
+    conn = sqlite3.connect("taskearn_v20.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Оспорено', cancel_reason=? WHERE id=?", (reason, task_id))
     conn.commit()
     conn.close()
 
 def worker_confirm_cancel(task_id, reward, client_id, worker_id):
-    conn = sqlite3.connect("taskearn_v19.db")
+    conn = sqlite3.connect("taskearn_v20.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Отменено' WHERE id=?", (task_id,))
     cursor.execute("UPDATE users SET balance = balance + ? WHERE id=?", (reward, client_id))
@@ -207,7 +215,7 @@ def worker_confirm_cancel(task_id, reward, client_id, worker_id):
     change_rating_flat(worker_id, -0.6)
 
 def worker_send_to_arbitration(task_id, appeal_text):
-    conn = sqlite3.connect("taskearn_v19.db")
+    conn = sqlite3.connect("taskearn_v20.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Арбитраж', appeal_text=? WHERE id=?", (appeal_text, task_id))
     conn.commit()
@@ -219,128 +227,186 @@ init_db()
 CITIES = ["Все регионы", "Кишинёв", "Бельцы", "Комрат", "Кагул", "Оргеев", "Унгены", "Сороки", "Тирасполь"]
 CATEGORIES = ["Все категории", "📦 Доставка", "🛠️ Ремонт и дом", "💻 IT и Тексты", "🚗 Автоуслуги", "Другое"]
 
-st.set_page_config(page_title="TaskEarn Real-time", page_icon="🇲🇩", layout="centered")
+st.set_page_config(page_title="TaskEarn SMS Auth", page_icon="🇲🇩", layout="centered")
 
-# Контроль сессии авторизации (индивидуально для каждого телефона/браузера)
+# Переменные сессии для авторизации
 if "logged_in_user_id" not in st.session_state:
     st.session_state["logged_in_user_id"] = None
+if "sms_code" not in st.session_state:
+    st.session_state["sms_code"] = None
+if "pending_phone" not in st.session_state:
+    st.session_state["pending_phone"] = None
+if "pending_user_data" not in st.session_state:
+    st.session_state["pending_user_data"] = None
 
-# --- ЭКРАН ВХОДА / РЕГИСТРАЦИИ ---
+# --- ЭКРАН ВХОДА И SMS ПОДТВЕРЖДЕНИЯ ---
 if st.session_state["logged_in_user_id"] is None:
-    st.title("🇲🇩 Добро пожаловать в TaskEarn")
-    st.write("Для продолжения войдите по вашему уникальному ID или создайте новый аккаунт.")
+    st.title("🇲🇩 Вход в TaskEarn по номеру телефона")
+    st.write("Введите свой номер мобильного. Система отправит вам проверочный SMS-код.")
     
-    tab_login, tab_register = st.tabs(["🔑 Вход по ID", "✨ Создать аккаунт"])
+    # Сценарий 1: Ожидание ввода SMS-кода
+    if st.session_state["sms_code"] is not None:
+        st.info(f"Код верификации отправлен на номер: **{st.session_state['pending_phone']}**")
+        input_sms = st.text_input("Введите 4-значный код из SMS:", max_chars=4)
+        
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            if st.button("🔄 Отправить код повторно", use_container_width=True):
+                st.session_state["sms_code"] = str(random.randint(1000, 9999))
+                st.toast(f"💬 Новое SMS на {st.session_state['pending_phone']}: Код {st.session_state['sms_code']}", icon="💬")
+                st.rerun()
+        with col_btn2:
+            if st.button("❌ Сбросить / Назад", use_container_width=True):
+                st.session_state["sms_code"] = None
+                st.session_state["pending_phone"] = None
+                st.session_state["pending_user_data"] = None
+                st.rerun()
+
+        if input_sms:
+            if input_sms.strip() == st.session_state["sms_code"]:
+                # Проверяем, это вход существующего или регистрация нового
+                if st.session_state["pending_user_data"] is None:
+                    # ВХОД
+                    user_id = get_user_by_phone(st.session_state["pending_phone"])
+                    st.session_state["logged_in_user_id"] = user_id
+                    st.session_state["sms_code"] = None
+                    st.session_state["pending_phone"] = None
+                    st.success("Успешный вход!")
+                    st.rerun()
+                else:
+                    # РЕГИСТРАЦИЯ НОВОГО
+                    p_data = st.session_state["pending_user_data"]
+                    new_id = generate_unique_id()
+                    if register_user(new_id, p_data['role'], p_data['name'], p_data['phone'], p_data['about'], p_data['balance']):
+                        st.session_state["logged_in_user_id"] = new_id
+                        st.session_state["sms_code"] = None
+                        st.session_state["pending_phone"] = None
+                        st.session_state["pending_user_data"] = None
+                        st.success("Регистрация успешно завершена!")
+                        st.rerun()
+            elif len(input_sms.strip()) == 4:
+                st.error("Неверный код безопасности. Попробуйте еще раз.")
+        st.stop()
+
+    # Сценарий 2: Первичный ввод телефона или регистрация
+    tab_login, tab_register = st.tabs(["🔑 Войти", "✨ Зарегистрироваться"])
     
     with tab_login:
-        st.subheader("Вход в систему")
-        input_id = st.number_input("Введите ваш 6-значный ID:", min_value=100000, max_value=999999, step=1, value=482910)
-        st.caption("Подсказка для тестов: Заказчик (`482910`), Исполнитель (`730145`), Админ (`999111`)")
+        login_phone = st.text_input("Ваш телефон (например, +37368123456):", key="log_p")
+        st.caption("Тестовые номера в системе: Заказчик `+37368123456`, Воркер `+37379987654`, Админ `000`")
         
-        if st.button("Войти в систему", use_container_width=True):
-            user = get_user_by_id(input_id)
-            if user:
-                st.session_state["logged_in_user_id"] = user["id"]
-                st.success(f"Успешный вход! Добро пожаловать, {user['name']}.")
-                st.rerun()
+        if st.button("Получить код по SMS", key="log_submit", use_container_width=True):
+            cleaned_phone = login_phone.strip().replace(" ", "")
+            if cleaned_phone:
+                user_id = get_user_by_phone(cleaned_phone)
+                if user_id:
+                    # Генерируем SMS-код
+                    st.session_state["sms_code"] = str(random.randint(1000, 9999))
+                    st.session_state["pending_phone"] = cleaned_phone
+                    st.session_state["pending_user_data"] = None
+                    
+                    # Симуляция отправки SMS через Toast-уведомление Streamlit
+                    st.toast(f"💬 SMS на {cleaned_phone}: Ваш код подтверждения {st.session_state['sms_code']}", icon="💬")
+                    time.sleep(0.5)
+                    st.rerun()
+                else:
+                    st.error("Пользователь с таким номером телефона не зарегистрирован.")
             else:
-                st.error("Пользователь с таким ID не найден. Проверьте номер или зарегистрируйтесь.")
+                st.error("Пожалуйста, укажите корректный номер телефона.")
                 
     with tab_register:
-        st.subheader("Регистрация нового пользователя")
-        reg_role = st.selectbox("Кто вы?", ["client", "worker"], format_func=lambda x: "💼 Заказчик (Ищу исполнителей)" if x == "client" else "🧑‍💻 Исполнитель (Ищу работу)")
-        reg_name = st.text_input("Ваше Имя и Фамилия:")
-        reg_phone = st.text_input("Номер телефона:")
-        reg_about = st.text_area("О себе / Описание:")
+        reg_role = st.selectbox("Ваш статус на платформе:", ["client", "worker"], format_func=lambda x: "💼 Заказчик (Публикую задания)" if x == "client" else "🧑‍💻 Исполнитель (Выполняю задания)")
+        reg_name = st.text_input("Имя и Фамилия:")
+        reg_phone = st.text_input("Номер мобильного (например, +37377799999):")
+        reg_about = st.text_area("Пара слов о себе:")
         
-        if st.button("Зарегистрироваться", use_container_width=True):
-            if reg_name.strip() and reg_phone.strip():
-                new_generated_id = generate_unique_id()
-                # Если регистрируется заказчик, дадим ему 500 MDL стартовых для тестов
-                start_bal = 500.0 if reg_role == "client" else 0.0
-                
-                if register_user(new_generated_id, reg_role, reg_name, reg_phone, reg_about, start_bal):
-                    st.session_state["logged_in_user_id"] = new_generated_id
-                    st.success(f"🎉 Аккаунт успешно создан! ВАШ УНИКАЛЬНЫЙ ID: {new_generated_id}. Запишите его, чтобы заходить с других устройств!")
-                    if st.button("Перейти в приложение"):
-                        st.rerun()
-                else:
-                    st.error("Ошибка при генерации ID. Попробуйте еще раз.")
+        if st.button("Зарегистрироваться по SMS", use_container_width=True):
+            cl_phone = reg_phone.strip().replace(" ", "")
+            if not reg_name.strip() or not cl_phone:
+                st.error("Имя и номер телефона обязательны для заполнения.")
+            elif get_user_by_phone(cl_phone) is not None:
+                st.error("Этот номер телефона уже занят другим аккаунтом!")
             else:
-                st.error("Пожалуйста, заполните Имя и Телефон.")
+                # Сохраняем временные данные, ждем подтверждения SMS
+                st.session_state["sms_code"] = str(random.randint(1000, 9999))
+                st.session_state["pending_phone"] = cl_phone
+                st.session_state["pending_user_data"] = {
+                    "role": reg_role,
+                    "name": reg_name.strip(),
+                    "phone": cl_phone,
+                    "about": reg_about.strip(),
+                    "balance": 500.0 if reg_role == "client" else 0.0  # Бонус заказчикам
+                }
+                st.toast(f"💬 SMS на {cl_phone}: Код подтверждения регистрации {st.session_state['sms_code']}", icon="💬")
+                time.sleep(0.5)
+                st.rerun()
     st.stop()
 
-# --- ОСНОВНОЕ ПРИЛОЖЕНИЕ (ЕСЛИ АВТОРИЗОВАН) ---
+# --- ОСНОВНОЙ ЖИЗНЕННЫЙ ЦИКЛ ПРИЛОЖЕНИЯ ---
 user_data = get_user_by_id(st.session_state["logged_in_user_id"])
 
-# Защита на случай, если юзера удалили из БД
 if not user_data:
     st.session_state["logged_in_user_id"] = None
     st.rerun()
 
 st.title("🇲🇩 Платформа микрозадач TaskEarn")
-st.write(f"Вы вошли как: **{user_data['name']}** (Роль: `{user_data['role']}`)")
+st.write(f"Добро пожаловать, **{user_data['name']}**")
 st.write("---")
 
-# Сайдбар с личной информацией
-st.sidebar.header("👤 Ваш профиль")
+# Боковая панель (Сайдбар)
+st.sidebar.header("👤 Личный Кабинет")
 st.sidebar.write(f"🆔 **Ваш ID:** `{user_data['id']}`")
+st.sidebar.write(f"📞 **Телефон:** `{user_data['phone']}`")
+
 if user_data['role'] != 'admin':
-    st.sidebar.metric(label="Ваш баланс", value=f"{user_data['balance']} MDL")
-    st.sidebar.write(f"⭐ Рейтинг: `{user_data['rating']} / 5.0`")
+    st.sidebar.metric(label="Баланс счета", value=f"{user_data['balance']} MDL")
+    st.sidebar.write(f"⭐ Текущий рейтинг: `{user_data['rating']} / 5.0`")
     if user_data['role'] == 'client':
-        if st.sidebar.button("Пополнить баланс на +500 MDL"):
+        if st.sidebar.button("👛 Пополнить баланс (+500 MDL)"):
             update_balance(user_data['id'], 500.0)
             st.rerun()
 else:
-    st.sidebar.metric(label="Касса платформы (Комиссии)", value=f"{user_data['balance']} MDL")
+    st.sidebar.metric(label="Оборот сервиса (Комиссия)", value=f"{user_data['balance']} MDL")
 
-if st.sidebar.button("🚪 Выйти из аккаунта", use_container_width=True):
+if st.sidebar.button("🚪 Выйти из системы", use_container_width=True):
     st.session_state["logged_in_user_id"] = None
-    st.rerun()
-
-st.sidebar.write("---")
-
-# Добавляем кнопку "🔄 Обновить ленту данных" в сайдбар для ручного сброса кэша, если нужно
-if st.sidebar.button("🔄 Синхронизировать данные"):
     st.rerun()
 
 # --- ЛОГИКА ЗАКАЗЧИКА ---
 if user_data['role'] == 'client':
-    tab_tasks, tab_review, tab_profile = st.tabs(["📋 Создать и Управлять", "🔍 Проверка работ", "👤 Мой профиль"])
+    tab_tasks, tab_review, tab_profile = st.tabs(["📋 Мои Задания", "🔍 Контроль выполнения", "👤 Настройки"])
     
     with tab_tasks:
-        st.header("Новое задание")
+        st.header("Разместить новый заказ")
         with st.form("new_task_form", clear_on_submit=True):
-            task_title = st.text_input("Что необходимо сделать?")
-            task_city = st.selectbox("Ближайший город/райцентр:", CITIES[1:])
-            task_village = st.text_input("Уточните населённый пункт:")
-            task_category = st.selectbox("Категория:", CATEGORIES[1:])
-            task_reward = st.number_input("Стоимость задачи для вас (MDL)", min_value=20, value=100, step=10)
-            submit = st.form_submit_button("Опубликовать")
+            task_title = st.text_input("Что нужно сделать (Краткое описание):")
+            task_city = st.selectbox("Регион/Город:", CITIES[1:])
+            task_village = st.text_input("Укажите село/улицу (если нужно):")
+            task_category = st.selectbox("Категория работы:", CATEGORIES[1:])
+            task_reward = st.number_input("Бюджет задания (MDL)", min_value=20, value=150, step=10)
+            submit = st.form_submit_button("Запустить в ленту")
             
             if submit and task_title:
-                # Перепроверяем баланс прямо перед транзакцией из свежей БД
                 fresh_user = get_user_by_id(user_data['id'])
                 if fresh_user['balance'] >= task_reward:
                     loc_village = task_village.strip() if task_village.strip() else "город"
                     update_balance(user_data['id'], -task_reward)
                     add_task(task_title, task_reward, task_city, loc_village, task_category, user_data['id'])
-                    st.success("Опубликовано! Деньги заморожены на балансе задачи.")
+                    st.success("Задание успешно добавлено в общую ленту!")
                     st.rerun()
                 else:
-                    st.error("Недостаточно средств!")
+                    st.error("Ошибка: Баланс вашего счета ниже стоимости задания. Пополните счет.")
 
         st.write("---")
-        st.subheader("⚡ Ваши задания")
+        st.subheader("📋 История ваших заказов")
         df_tasks = get_tasks_with_names()
         
         if df_tasks.empty:
-            st.info("Вы ещё не создавали заданий.")
+            st.info("Вы еще не создавали заказов.")
         else:
             my_tasks = df_tasks[df_tasks["client_id"] == user_data['id']].to_dict(orient="records")
             if not my_tasks:
-                st.info("У вас нет активных заданий.")
+                st.info("Нет активных заказов.")
             else:
                 for task in my_tasks:
                     with st.container():
@@ -348,65 +414,67 @@ if user_data['role'] == 'client':
                         with col_t1:
                             st.write(f"**{task['title']}** — 💰 {task['reward']} MDL")
                             if task['status'] == 'Доступно':
-                                st.caption(f"🟢 В ленте (ждет исполнителя)")
+                                st.caption(f"🟢 Свободно. Ожидает отклика исполнителей.")
                             elif task['status'] == 'В работе':
-                                st.info(f"🔵 **В работе** у: **{task['worker_name']}** (ID: {task['worker_id']}) | 📞 {task['worker_phone']}")
+                                st.info(f"🔵 **Исполняется:** {task['worker_name']} | 📞 {task['worker_phone']}")
                             elif task['status'] == 'На проверке':
-                                st.warning(f"🟡 **На проверке!** Проверьте вкладку 'Проверка работ'")
+                                st.warning(f"🟡 **Контроль:** Исполнитель сдал работу. Проверьте её.")
                             elif task['status'] == 'Оспорено':
-                                st.error(f"🟠 Вы отклонили работу. Ждем действий воркера.")
+                                st.error(f"🟠 Задание отклонено вами. Ожидание апелляции.")
                             elif task['status'] == 'Арбитраж':
-                                st.info(f"⚖️ Спор передан Администрации.")
+                                st.info(f"⚖️ Спор рассматривается модератором.")
                         with col_t2:
                             if task['status'] == 'Доступно':
-                                if st.button("❌ Отозвать", key=f"rev_{task['id']}", use_container_width=True):
+                                if st.button("❌ Удалить", key=f"rev_{task['id']}", use_container_width=True):
                                     revoke_free_task(task['id'])
                                     update_balance(user_data['id'], task['reward'])
                                     st.rerun()
                         st.write("---")
 
     with tab_review:
-        st.header("🔍 Задания на проверке")
+        st.header("🔍 Проверка присланных работ")
         df_tasks = get_tasks_with_names()
         if not df_tasks.empty:
             review_tasks = df_tasks[(df_tasks["status"] == "На проверке") & (df_tasks["client_id"] == user_data['id'])].to_dict(orient="records")
             if not review_tasks:
-                st.info("Нет новых работ на проверку.")
+                st.info("Нет задач, требующих вашего утверждения.")
             else:
                 for task in review_tasks:
-                    st.write(f"### Задание: {task['title']} ({task['reward']} MDL)")
-                    st.markdown(f"> **Отчёт исполнителя (ID {task['worker_id']}):** {task['worker_evidence']}")
+                    st.write(f"### Задача: {task['title']}")
+                    st.markdown(f"> 📄 **Текст отчета от исполнителя:** {task['worker_evidence']}")
                     
                     col1, col2 = st.columns(2)
                     with col1:
-                        if st.button("✅ Принять и оплатить", key=f"app_{task['id']}", use_container_width=True):
+                        if st.button("✅ Подтвердить выполнение", key=f"app_{task['id']}", use_container_width=True):
                             approve_task(task["id"], task["reward"], task["worker_id"])
+                            st.success("Оплата переведена воркеру!")
                             st.rerun()
                     with col2:
-                        with st.popover("❌ Отклонить", use_container_width=True):
+                        with st.popover("❌ Отклонить отчет", use_container_width=True):
                             with st.form(key=f"dis_form_{task['id']}"):
-                                reason_text = st.text_area("Причина отказа:")
-                                if st.form_submit_button("🚨 Отклонить"):
+                                reason_text = st.text_area("Опишите, что именно не сделано:")
+                                if st.form_submit_button("🚨 Отправить отказ"):
                                     if len(reason_text.strip()) >= 5:
                                         client_dispute_task(task["id"], reason_text.strip())
                                         st.rerun()
 
     with tab_profile:
-        st.header("👤 Редактировать профиль")
+        st.header("👤 Данные аккаунта")
         with st.form("c_prof"):
-            new_name = st.text_input("Ваше Имя:", value=user_data['name'])
-            p = st.text_input("Телефон:", value=user_data['phone'])
-            a = st.text_area("О себе:", value=user_data['about'])
-            if st.form_submit_button("Сохранить"):
+            new_name = st.text_input("Отображаемое Имя:", value=user_data['name'])
+            p = st.text_input("Телефон связи:", value=user_data['phone'], disabled=True)
+            st.caption("Номер телефона является логином, его нельзя изменить самостоятельно.")
+            a = st.text_area("Дополнительно о вас:", value=user_data['about'])
+            if st.form_submit_button("Обновить"):
                 update_profile(user_data['id'], new_name, p, a)
                 st.rerun()
 
 # --- ЛОГИКА ИСПОЛНИТЕЛЯ ---
 elif user_data['role'] == 'worker':
-    tab_tasks, tab_withdraw, tab_profile = st.tabs(["📋 Лента заданий", "💸 Вывод средств", "👤 Мой профиль"])
+    tab_tasks, tab_withdraw, tab_profile = st.tabs(["📋 Доступная Работа", "💸 Вывод баланса", "👤 Профиль"])
     
     with tab_tasks:
-        st.header("Лента микрозадач")
+        st.header("Лента актуальных заданий Молдавии")
         df_tasks = get_tasks_with_names()
         if not df_tasks.empty:
             my_current_tasks = df_tasks[
@@ -414,98 +482,98 @@ elif user_data['role'] == 'worker':
                 ((df_tasks["worker_id"] == user_data['id']) & (df_tasks["status"].isin(["В работе", "На проверке", "Оспорено", "Арбитраж"])))
             ]
             if my_current_tasks.empty:
-                st.info("В ленте сейчас нет доступных задач.")
+                st.info("Лента пуста. Как только появятся новые заказы, они отобразятся здесь.")
             else:
                 for task in my_current_tasks.to_dict(orient="records"):
                     clean_reward = task['reward'] * (1 - COMMISSION_RATE)
                     with st.container():
                         col1, col2 = st.columns([3, 2])
                         with col1:
-                            st.write(f"**{task['title']}** (Заказчик ID: {task['client_id']})")
-                            st.write(f"💰 К выплате: **{clean_reward} MDL** (с учетом комиссии)")
-                            st.caption(f"📍 Населенный пункт: {task['city']}, {task['village']}")
+                            st.write(f"**{task['title']}**")
+                            st.write(f"💰 Оплата (чистая): **{clean_reward} MDL**")
+                            st.caption(f"📍 Локация: {task['city']}, {task['village']}")
                             if task['status'] == "Оспорено":
-                                st.error(f"⚠️ Отклонено заказчиком! Причина: «{task['cancel_reason']}»")
+                                st.error(f"⚠️ Отклонено! Причина заказчика: «{task['cancel_reason']}»")
                             elif task['status'] == "На проверке":
-                                st.warning("⏳ Ожидает проверки заказчиком.")
+                                st.warning("⏳ Проверяется заказчиком. Ожидайте.")
                             elif task['status'] == "Арбитраж":
-                                st.info("⚖️ Спор отправлен независимому арбитру.")
+                                st.info("⚖️ Дело передано независимому арбитру.")
                         with col2:
                             if task['status'] == "Доступно":
-                                if st.button("🤝 Взять в работу", key=f"take_{task['id']}", use_container_width=True):
+                                if st.button("🤝 Взять заказ", key=f"take_{task['id']}", use_container_width=True):
                                     worker_accept_task(task['id'], user_data['id'])
                                     st.rerun()
                             elif task['status'] == "В работе":
-                                with st.popover("📤 Отправить отчет", use_container_width=True):
+                                with st.popover("📤 Сдать готовую работу", use_container_width=True):
                                     with st.form(key=f"ev_f_{task['id']}"):
-                                        ev_text = st.text_area("Что было сделано:")
-                                        if st.form_submit_button("Отправить"):
+                                        ev_text = st.text_area("Опишите результаты (ссылки/текст):")
+                                        if st.form_submit_button("Сдать заказ"):
                                             if ev_text.strip():
                                                 send_to_review(task['id'], ev_text.strip())
                                                 st.rerun()
-                                if st.button("🚫 Отказаться", key=f"abd_{task['id']}", use_container_width=True):
+                                if st.button("🚫 Отказаться от задачи", key=f"abd_{task['id']}", use_container_width=True):
                                     worker_abandon_task(task['id'])
                                     st.rerun()
                             elif task['status'] == "Оспорено":
                                 if st.button("👍 Согласиться с отменой", key=f"agr_{task['id']}", use_container_width=True):
                                     worker_confirm_cancel(task['id'], task['reward'], task['client_id'], user_data['id'])
                                     st.rerun()
-                                with st.popover("⚖️ Подать в арбитраж", use_container_width=True):
+                                with st.popover("⚖️ Передать спор админу", use_container_width=True):
                                     with st.form(key=f"ap_f_{task['id']}"):
-                                        appeal_text = st.text_area("Ваши аргументы для админа:")
-                                        if st.form_submit_button("🚨 Оспорить"):
+                                        appeal_text = st.text_area("Напишите ваши аргументы:")
+                                        if st.form_submit_button("🚨 Начать арбитраж"):
                                             if len(appeal_text.strip()) >= 5:
                                                 worker_send_to_arbitration(task['id'], appeal_text.strip())
                                                 st.rerun()
                         st.write("---")
 
     with tab_withdraw:
-        st.header("💸 Вывод денег")
-        st.write(f"Доступно для вывода: **{user_data['balance']} MDL**")
+        st.header("💸 Заявка на выплату")
+        st.write(f"Доступные средства: **{user_data['balance']} MDL**")
         with st.form("withdraw_form"):
-            withdraw_amount = st.number_input("Сумма к выводу:", min_value=50, value=50, step=10)
-            card_number = st.text_input("Номер карты (16 знаков):")
-            if st.form_submit_button("Вывести"):
+            withdraw_amount = st.number_input("Какую сумму вывести:", min_value=50, value=50, step=10)
+            card_number = st.text_input("Номер банковской карты MD (16 цифр):")
+            if st.form_submit_button("Подтвердить выплату"):
                 if user_data['balance'] >= withdraw_amount and len(card_number.strip()) >= 16:
                     update_balance(user_data['id'], -withdraw_amount)
-                    st.success("Заявка на вывод успешно отправлена!")
+                    st.success("Выплата успешно отправлена в обработку банк-партнер!")
                     st.rerun()
 
     with tab_profile:
-        st.header("👤 Настройки профиля")
+        st.header("👤 Настройки исполнителя")
         with st.form("w_prof"):
-            new_name = st.text_input("Ваше Имя:", value=user_data['name'])
-            p = st.text_input("Телефон:", value=user_data['phone'])
-            a = st.text_area("О себе:", value=user_data['about'])
-            if st.form_submit_button("Сохранить изменения"):
+            new_name = st.text_input("Ваше Имя / Никнейм:", value=user_data['name'])
+            p = st.text_input("Телефон:", value=user_data['phone'], disabled=True)
+            a = st.text_area("Навыки, инструменты, опыт работы:", value=user_data['about'])
+            if st.form_submit_button("Сохранить"):
                 update_profile(user_data['id'], new_name, p, a)
                 st.rerun()
 
-# --- ПАНЕЛЬ АДМИНИСТРАТОРА ---
+# --- ПАНЕЛЬ АДМИНИСТРАТОРА (АРБИТРАЖ) ---
 elif user_data['role'] == 'admin':
-    st.header("👑 Панель Администратора (Арбитраж)")
+    st.header("👑 Судейство и Арбитраж Системы")
     df_tasks = get_tasks_with_names()
     if not df_tasks.empty:
         arbitration_tasks = df_tasks[df_tasks["status"] == "Арбитраж"].to_dict(orient="records")
         if not arbitration_tasks:
-            st.info("Нет активных споров. Все спокойно!")
+            st.info("Нет открытых споров между пользователями.")
         else:
             for task in arbitration_tasks:
-                with st.expander(f"⚖️ Спор по задаче: {task['title']}"):
+                with st.expander(f"⚖️ Разбор спора: {task['title']}"):
                     st.write(f"**Заказчик (ID: {task['client_id']}):** {task['client_name']}")
                     st.write(f"**Исполнитель (ID: {task['worker_id']}):** {task['worker_name']}")
-                    st.write(f"📋 **Отчет воркера:** {task['worker_evidence']}")
-                    st.write(f"❌ **Жалоба клиента:** {task['cancel_reason']}")
+                    st.write(f"📋 **Что прислал воркер:** {task['worker_evidence']}")
+                    st.write(f"❌ **Причина претензии клиента:** {task['cancel_reason']}")
                     st.write(f"🚨 **Апелляция воркера:** {task['appeal_text']}")
                     
                     col1, col2 = st.columns(2)
                     with col1:
-                        if st.button("Победа Исполнителя ✅", key=f"win_w_{task['id']}", use_container_width=True):
+                        if st.button("Победа Исполнителя (Выплатить) ✅", key=f"win_w_{task['id']}", use_container_width=True):
                             approve_task(task['id'], task['reward'], task['worker_id'])
                             st.rerun()
                     with col2:
-                        if st.button("Победа Заказчика ❌", key=f"win_c_{task['id']}", use_container_width=True):
-                            conn = sqlite3.connect("taskearn_v19.db")
+                        if st.button("Победа Заказчика (Вернуть) ❌", key=f"win_c_{task['id']}", use_container_width=True):
+                            conn = sqlite3.connect("taskearn_v20.db")
                             cursor = conn.cursor()
                             cursor.execute("UPDATE tasks SET status='Отменено' WHERE id=?", (task['id'],))
                             cursor.execute("UPDATE users SET balance = balance + ? WHERE id=?", (task['reward'], task['client_id']))
