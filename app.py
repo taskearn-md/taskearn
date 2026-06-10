@@ -1,17 +1,31 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
+import random
 
 # --- НАСТРОЙКА ПЛАТФОРМЫ ---
 COMMISSION_RATE = 0.10  # 10% комиссия сервиса
 
+def generate_unique_id():
+    """Генерирует случайный уникальный 6-значный ID"""
+    conn = sqlite3.connect("taskearn_v18.db")
+    cursor = conn.cursor()
+    while True:
+        new_id = random.randint(100000, 999999)
+        cursor.execute("SELECT id FROM users WHERE id = ?", (new_id,))
+        if not cursor.fetchone():
+            conn.close()
+            return new_id
+
 # --- РАБОТА С БАЗОЙ ДАННЫХ (SQL) ---
 def init_db():
-    conn = sqlite3.connect("taskearn_v17.db")
+    conn = sqlite3.connect("taskearn_v18.db")
     cursor = conn.cursor()
+    
+    # Таблица пользователей с полноценными длинными ID
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id INTEGER PRIMARY KEY,     
             role TEXT NOT NULL,
             username TEXT UNIQUE,
             name TEXT NOT NULL,
@@ -24,10 +38,22 @@ def init_db():
             tasks_canceled INTEGER DEFAULT 0
         )
     """)
-    cursor.execute("INSERT OR IGNORE INTO users (id, role, username, name, phone, about, balance) VALUES (1, 'client', 'ion_cheban', 'Ион Чебан', '+373 68 123 456', 'Заказчик из Кишинева.', 1000.0)")
-    cursor.execute("INSERT OR IGNORE INTO users (id, role, username, name, phone, about, balance) VALUES (2, 'worker', 'mihail_lupu', 'Михаил Лупу', '+373 79 987 654', 'Исполнитель из Комрата.', 0.0)")
-    cursor.execute("INSERT OR IGNORE INTO users (id, role, username, name, phone, about, balance) VALUES (3, 'admin', 'platform_owner', 'Администратор', '000', 'Владелец платформы', 0.0)")
     
+    # Записываем тестовых пользователей сразу со случайными реалистичными ID
+    cursor.execute("""
+        INSERT OR IGNORE INTO users (id, role, username, name, phone, about, balance) 
+        VALUES (482910, 'client', 'ion_cheban', 'Ион Чебан', '+373 68 123 456', 'Заказчик из Кишинева.', 1000.0)
+    """)
+    cursor.execute("""
+        INSERT OR IGNORE INTO users (id, role, username, name, phone, about, balance) 
+        VALUES (730145, 'worker', 'mihail_lupu', 'Михаил Лупу', '+373 79 987 654', 'Исполнитель из Комрата.', 0.0)
+    """)
+    cursor.execute("""
+        INSERT OR IGNORE INTO users (id, role, username, name, phone, about, balance) 
+        VALUES (999111, 'admin', 'platform_owner', 'Администратор', '000', 'Владелец платформы', 0.0)
+    """)
+    
+    # Таблица для заданий
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS tasks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,7 +76,7 @@ def init_db():
     conn.close()
 
 def get_user_by_id(user_id):
-    conn = sqlite3.connect("taskearn_v17.db")
+    conn = sqlite3.connect("taskearn_v18.db")
     cursor = conn.cursor()
     cursor.execute("SELECT id, role, username, name, phone, about, balance, rating, tasks_created, tasks_canceled FROM users WHERE id=?", (user_id,))
     res = cursor.fetchone()
@@ -64,21 +90,21 @@ def get_user_by_id(user_id):
     return None
 
 def update_profile(user_id, name, phone, about):
-    conn = sqlite3.connect("taskearn_v17.db")
+    conn = sqlite3.connect("taskearn_v18.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE users SET name=?, phone=?, about=? WHERE id=?", (name, phone, about, user_id))
     conn.commit()
     conn.close()
 
 def update_balance(user_id, amount):
-    conn = sqlite3.connect("taskearn_v17.db")
+    conn = sqlite3.connect("taskearn_v18.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE users SET balance = balance + ? WHERE id=?", (amount, user_id))
     conn.commit()
     conn.close()
 
 def change_rating_flat(user_id, penalty):
-    conn = sqlite3.connect("taskearn_v17.db")
+    conn = sqlite3.connect("taskearn_v18.db")
     cursor = conn.cursor()
     cursor.execute("SELECT rating FROM users WHERE id=?", (user_id,))
     res = cursor.fetchone()
@@ -89,7 +115,7 @@ def change_rating_flat(user_id, penalty):
     conn.close()
 
 def add_task(title, reward, city, village, category, client_id):
-    conn = sqlite3.connect("taskearn_v17.db")
+    conn = sqlite3.connect("taskearn_v18.db")
     cursor = conn.cursor()
     cursor.execute("INSERT INTO tasks (title, reward, status, city, village, category, client_id) VALUES (?, ?, 'Доступно', ?, ?, ?, ?)", 
                    (title, reward, city, village, category, client_id))
@@ -104,34 +130,34 @@ def get_tasks_with_names():
         JOIN users c ON t.client_id = c.id
         LEFT JOIN users w ON t.worker_id = w.id
     """
-    conn = sqlite3.connect("taskearn_v17.db")
+    conn = sqlite3.connect("taskearn_v18.db")
     df = pd.read_sql_query(query, conn)
     conn.close()
     return df
 
 def revoke_free_task(task_id):
-    conn = sqlite3.connect("taskearn_v17.db")
+    conn = sqlite3.connect("taskearn_v18.db")
     cursor = conn.cursor()
     cursor.execute("DELETE FROM tasks WHERE id=?", (task_id,))
     conn.commit()
     conn.close()
 
 def worker_accept_task(task_id, worker_id):
-    conn = sqlite3.connect("taskearn_v17.db")
+    conn = sqlite3.connect("taskearn_v18.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='В работе', worker_id=? WHERE id=?", (worker_id, task_id))
     conn.commit()
     conn.close()
 
 def worker_abandon_task(task_id):
-    conn = sqlite3.connect("taskearn_v17.db")
+    conn = sqlite3.connect("taskearn_v18.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Доступно', worker_id=NULL, worker_evidence='' WHERE id=?", (task_id,))
     conn.commit()
     conn.close()
 
 def send_to_review(task_id, evidence):
-    conn = sqlite3.connect("taskearn_v17.db")
+    conn = sqlite3.connect("taskearn_v18.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='На проверке', worker_evidence=? WHERE id=?", (evidence, task_id))
     conn.commit()
@@ -140,23 +166,23 @@ def send_to_review(task_id, evidence):
 def approve_task(task_id, total_reward, worker_id):
     admin_cut = total_reward * COMMISSION_RATE
     worker_cut = total_reward - admin_cut
-    conn = sqlite3.connect("taskearn_v17.db")
+    conn = sqlite3.connect("taskearn_v18.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Выполнено' WHERE id=?", (task_id,))
     cursor.execute("UPDATE users SET balance = balance + ? WHERE id=?", (worker_cut, worker_id))
-    cursor.execute("UPDATE users SET balance = balance + ? WHERE id=3", (admin_cut,))
+    cursor.execute("UPDATE users SET balance = balance + ? WHERE id=999111", (admin_cut,))
     conn.commit()
     conn.close()
 
 def client_dispute_task(task_id, reason):
-    conn = sqlite3.connect("taskearn_v17.db")
+    conn = sqlite3.connect("taskearn_v18.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Оспорено', cancel_reason=? WHERE id=?", (reason, task_id))
     conn.commit()
     conn.close()
 
 def worker_confirm_cancel(task_id, reward, client_id, worker_id):
-    conn = sqlite3.connect("taskearn_v17.db")
+    conn = sqlite3.connect("taskearn_v18.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Отменено' WHERE id=?", (task_id,))
     cursor.execute("UPDATE users SET balance = balance + ? WHERE id=?", (reward, client_id))
@@ -166,33 +192,34 @@ def worker_confirm_cancel(task_id, reward, client_id, worker_id):
     change_rating_flat(worker_id, -0.6)
 
 def worker_send_to_arbitration(task_id, appeal_text):
-    conn = sqlite3.connect("taskearn_v17.db")
+    conn = sqlite3.connect("taskearn_v18.db")
     cursor = conn.cursor()
     cursor.execute("UPDATE tasks SET status='Арбитраж', appeal_text=? WHERE id=?", (appeal_text, task_id))
     conn.commit()
     conn.close()
 
-# --- ИНИЦИАЛИЗАЦИЯ СТАТУСА ПРИЛОЖЕНИЯ ---
+# --- ИНИЦИАЛИЗАЦИЯ И ИНТЕРФЕЙС ---
 init_db()
 
 CITIES = ["Все регионы", "Кишинёв", "Бельцы", "Комрат", "Кагул", "Оргеев", "Унгены", "Сороки", "Тирасполь"]
 CATEGORIES = ["Все категории", "📦 Доставка", "🛠️ Ремонт и дом", "💻 IT и Тексты", "🚗 Автоуслуги", "Другое"]
 
-st.set_page_config(page_title="TaskEarn Fixed", page_icon="🇲🇩", layout="centered")
-st.title("🇲🇩 TaskEarn — Стабильная версия (ID)")
+st.set_page_config(page_title="TaskEarn Complete", page_icon="🇲🇩", layout="centered")
+st.title("🇲🇩 TaskEarn — Полноразмерные ID")
 st.write("---")
 
 role_selection = st.sidebar.radio("Выберите роль экрана:", ["💼 Заказчик", "🧑‍💻 Исполнитель", "⚖️ Арбитраж (Админ)"])
 
 if role_selection == "💼 Заказчик":
-    current_user_id = 1
+    current_user_id = 482910
 elif role_selection == "🧑‍💻 Исполнитель":
-    current_user_id = 2
+    current_user_id = 730145
 else:
-    current_user_id = 3
+    current_user_id = 999111
 
 user_data = get_user_by_id(current_user_id)
 
+# Отображение профиля в Сайдбаре (Чистый вывод ID)
 if user_data and user_data['role'] != 'admin':
     st.sidebar.metric(label="Ваш личный баланс", value=f"{user_data['balance']} MDL")
     st.sidebar.write(f"🆔 **Ваш ID:** {user_data['id']}")
@@ -404,7 +431,7 @@ elif user_data and user_data['role'] == 'admin':
                             st.rerun()
                     with col2:
                         if st.button("Победа Заказчика ❌", key=f"win_c_{task['id']}", use_container_width=True):
-                            conn = sqlite3.connect("taskearn_v17.db")
+                            conn = sqlite3.connect("taskearn_v18.db")
                             cursor = conn.cursor()
                             cursor.execute("UPDATE tasks SET status='Отменено' WHERE id=?", (task['id'],))
                             cursor.execute("UPDATE users SET balance = balance + ? WHERE id=?", (task['reward'], task['client_id']))
